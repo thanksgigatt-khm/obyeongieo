@@ -151,6 +151,14 @@ test('추가. 갚아가는 중 (debtTotal·debtStart)', () => {
   assert.equal(c.debts('2027-03')[0].paid, 1000000);   // 총액을 넘지 않음
 });
 
+test('추가. 갚아가는 중 — 전에 이미 갚은 돈 (debtPaid)', () => {
+  const c = make({ fixed: [{ name: '엄마', amount: 125000, method: 'cash', day: 5, debtTotal: 5000000, debtPaid: 4550000, debtStart: '2026-11' }] });
+  const d = c.debts('2026-11')[0];
+  assert.equal(d.paid, 4675000);
+  assert.equal(d.left, 325000);
+  assert.equal(d.doneMonth, '2027-02');
+});
+
 test('추가. 일회성 수입·대출', () => {
   const c = make({
     income: 3000000,

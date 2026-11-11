@@ -245,8 +245,9 @@
         if (!f.debtTotal || !f.debtStart || f.active === false) continue;
         const total = +f.debtTotal, amt = fixedAmt(f, M) || 1;
         const n = Math.max(0, monthDiff(f.debtStart, M) + 1);
-        const paid = Math.min(total, amt * n);
-        out.push({ name: f.name, total, paid, left: total - paid, doneMonth: addYM(f.debtStart, Math.ceil(total / amt) - 1) });
+        const before = +f.debtPaid || 0;                       // debtStart 전에 이미 갚은 돈
+        const paid = Math.min(total, before + amt * n);
+        out.push({ name: f.name, total, paid, left: total - paid, doneMonth: addYM(f.debtStart, Math.ceil(Math.max(0, total - before) / amt) - 1) });
       }
       for (const L of loans()) {
         if (!L.startMonth || M < L.startMonth || L.fixedId || L.balance != null) continue;   // 대출 칸(loanBook)에서 따로 보여 줌
