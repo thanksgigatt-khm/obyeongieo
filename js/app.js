@@ -862,6 +862,9 @@
     noti: '퇴근 무렵, 주말 점심·저녁 전, 결제일 3일 전, 일요일 밤에 금액 없이 짧게 알려 드려요.'
   };
 
+  // 설정 화면(js/settings.js)이 쓰는 화면 도구
+  const UI_TOOLS = { openSheet, closeSheet, toast, esc, fmt, ICON: window.ICON, refresh: () => { if (LIVE) D = liveData(); render(); } };
+
   // ---------- 이벤트 ----------
   $app.addEventListener('click', e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
@@ -871,7 +874,7 @@
     else if (a === 'input') openInput(b.dataset.date ? { date: b.dataset.date } : null);
     else if (a === 'fixed') { S.fixedOpen = !S.fixedOpen; render(); }
     else if (a === 'tip') { S.tip++; render(); }
-    else if (a === 'held') toast('참았어요! 잘하셨어요 (7단계에서 기록돼요)');
+    else if (a === 'held') toast('참았어요! 잘하셨어요 (기록 기능은 곧 생겨요)');
     else if (a === 'day') openDay(b.dataset.date);
     else if (a === 'tx') openTx(b.dataset.id);
     else if (a === 'hf') { const k = b.dataset.k; S.hist[k] = k === 'bad' ? !S.hist.bad : b.dataset.v; render(); }
@@ -879,7 +882,8 @@
     else if (a === 'loans' || (a === 'menu' && b.dataset.k === 'loans')) openLoans();
     else if (a === 'menu' && b.dataset.k === 'import' && LIVE) openImport();
     else if (a === 'menu' && b.dataset.k === 'upload' && LIVE) openUpload();
-    else if (a === 'menu') { const m = MENU.find(x => x.k === b.dataset.k); openSheet(m.t, `<div class="stack"><p style="margin:0">${STEP_TEXT[m.k]}</p><p class="muted" style="margin:0;font-size:13px">${m.step}단계에서 만들어요.</p><button class="btn block" data-act="close">닫기</button></div>`); }
+    else if (a === 'menu' && b.dataset.k === 'set' && LIVE && window.OBYE_SETTINGS) OBYE_SETTINGS.open(UI_TOOLS);
+    else if (a === 'menu') { const m = MENU.find(x => x.k === b.dataset.k); openSheet(m.t, `<div class="stack"><p style="margin:0">${STEP_TEXT[m.k]}</p><p class="muted" style="margin:0;font-size:13px">아직 만드는 중이에요. 곧 쓸 수 있어요.</p><button class="btn block" data-act="close">닫기</button></div>`); }
     else if (a === 'switch') { S.role = isOwner() ? 'viewer' : 'owner'; store.set('role', S.role); S.tab = 'home'; render(); toast(isOwner() ? '청지기 화면이에요' : '함께 보기 화면이에요 (입력 버튼이 없어요)'); }
     else if (a === 'logout') {
       S.role = null; S.login = null; store.set('role', null);

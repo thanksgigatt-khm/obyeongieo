@@ -26,7 +26,11 @@
     trend: '<path d="m22 17-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/>',
     card: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
     wallet: '<path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
-    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+    tag: '<path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4z"/><circle cx="7.5" cy="7.5" r="1.2"/>',
+    bank: '<path d="M3 21h18M5 21V10M19 21V10M9.5 21V10M14.5 21V10"/><path d="M2.5 10 12 3l9.5 7z"/>',
+    piggy: '<path d="M19 9.5c1.2.4 2 1.3 2 2.5v2h-1.6a7 7 0 0 1-2.4 2.6V20h-3v-2h-4v2H7v-3.2A6.5 6.5 0 0 1 4 11.5C4 7.9 7.6 5 12 5c2.3 0 4.3.8 5.8 2"/><path d="M2 9.5c0 1.5 1 2.5 2 2.5"/><circle cx="15.5" cy="10" r=".8"/>'
   };
   window.ICON = (name, cls) => `<svg class="ico${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || ''}</svg>`;
 })();
