@@ -240,7 +240,7 @@ main{display:flex;flex-direction:column;gap:14px;padding-top:16px}
 .menu .tt small{display:block;color:var(--muted);font-size:12.5px}
 
 /* 로그인 */
-.login{min-height:100%;background:var(--navy-900);color:var(--on-navy);display:flex;flex-direction:column;justify-content:center;gap:28px;
+.login{min-height:100vh;min-height:100dvh;background:var(--navy-900);color:var(--on-navy);display:flex;flex-direction:column;justify-content:center;gap:28px;
   padding-top:calc(40px + env(safe-area-inset-top,0px));padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
 .login .in{max-width:420px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:28px}
 .login .logo{width:96px;height:96px;border-radius:24px;display:block;margin:0 auto}
