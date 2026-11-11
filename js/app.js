@@ -264,7 +264,8 @@
     </div>
     ${flow ? `<section class="card"><h2>다가오는 결제 <small>날짜순</small></h2><ul class="flow">${flow}</ul>
       ${H.needBy ? `<div class="need">${H.needBy.day}일까지 통장에 <b class="num">${fmt(H.needBy.amount)}원</b>이 필요해요</div>` : ''}</section>` : ''}
-    ${env ? `<section class="card"><h2>이번 달 예산 <small>${monthLabel(S.month)}</small></h2><div class="bars">${env}</div></section>` : ''}
+    ${env ? `<section class="card"><h2>이번 달 예산 <small>${monthLabel(S.month)}</small></h2><div class="bars">${env}</div>
+      ${LIVE && isOwner() ? `<button class="btn soft block" data-act="shop" style="margin-top:12px">${ICON('cart', 'sm')}장보기 모드</button>` : ''}</section>` : ''}
     <section class="card"><h2>참았어요</h2><div class="hold">
       <p>이번 달 참은 ${H.held.kind} <b>${H.held.count}번</b> · 약 <b class="num">${fmt(H.held.saved)}원</b> 아꼈어요</p>
       ${isOwner() ? `<button class="btn soft" data-act="held">${ICON('hand', 'sm')}참았어요</button>` : ''}</div></section>
@@ -874,7 +875,8 @@
     else if (a === 'input') openInput(b.dataset.date ? { date: b.dataset.date } : null);
     else if (a === 'fixed') { S.fixedOpen = !S.fixedOpen; render(); }
     else if (a === 'tip') { S.tip++; render(); }
-    else if (a === 'held') toast('참았어요! 잘하셨어요 (기록 기능은 곧 생겨요)');
+    else if (a === 'held') { if (LIVE && window.OBYE_EXTRAS) OBYE_EXTRAS.held(UI_TOOLS); else toast('참았어요! 잘하셨어요 (예시 화면이라 기록되지 않아요)'); }
+    else if (a === 'shop' && LIVE && window.OBYE_EXTRAS) OBYE_EXTRAS.shop(UI_TOOLS);
     else if (a === 'day') openDay(b.dataset.date);
     else if (a === 'tx') openTx(b.dataset.id);
     else if (a === 'hf') { const k = b.dataset.k; S.hist[k] = k === 'bad' ? !S.hist.bad : b.dataset.v; render(); }
@@ -882,6 +884,7 @@
     else if (a === 'loans' || (a === 'menu' && b.dataset.k === 'loans')) openLoans();
     else if (a === 'menu' && b.dataset.k === 'import' && LIVE) openImport();
     else if (a === 'menu' && b.dataset.k === 'upload' && LIVE) openUpload();
+    else if (a === 'menu' && LIVE && window.OBYE_EXTRAS && ['shop', 'held', 'goal'].includes(b.dataset.k)) OBYE_EXTRAS[{ shop: 'shop', held: 'heldList', goal: 'goals' }[b.dataset.k]](UI_TOOLS);
     else if (a === 'menu' && b.dataset.k === 'set' && LIVE && window.OBYE_SETTINGS) OBYE_SETTINGS.open(UI_TOOLS);
     else if (a === 'menu') { const m = MENU.find(x => x.k === b.dataset.k); openSheet(m.t, `<div class="stack"><p style="margin:0">${STEP_TEXT[m.k]}</p><p class="muted" style="margin:0;font-size:13px">아직 만드는 중이에요. 곧 쓸 수 있어요.</p><button class="btn block" data-act="close">닫기</button></div>`); }
     else if (a === 'switch') { S.role = isOwner() ? 'viewer' : 'owner'; store.set('role', S.role); S.tab = 'home'; render(); toast(isOwner() ? '청지기 화면이에요' : '함께 보기 화면이에요 (입력 버튼이 없어요)'); }
