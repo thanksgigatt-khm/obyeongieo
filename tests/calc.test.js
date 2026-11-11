@@ -264,3 +264,11 @@ test('추가. 수입이 두 사람·두 날이면 날마다 따로 (incomeParts)
   const u = c.upcoming('2026-12-01').items.filter(x => x.kind === 'pay');
   assert.deepEqual(u.map(x => [x.day, x.title, x.amount, x.outNow]), [[5, '내 급여', 3400000, 200000], [10, '남편', 2700000, 0]]);
 });
+
+test('추가. 매달 달라요: 직접 입력해서 맞춘 실제 금액도 평균에 들어감', () => {
+  const f = { id: 'p1', name: '피아노', amount: 200000, method: 'cash', day: 5, variable: true };
+  const c = make({ fixed: [f] }, [{ method: 'cash', date: '2026-11-09', amount: 150000, memo: '피아노', isFixed: true, fixedId: 'p1' }]);
+  assert.equal(c.fixedAmt(f, '2026-12'), 150000);              // 기록 1번 → 그 금액
+  assert.equal(c.settle('2026-11').fixedCash, 0);              // 11월은 실제 내역이 대신함
+  assert.equal(c.settle('2026-11').cashVar, 150000);
+});

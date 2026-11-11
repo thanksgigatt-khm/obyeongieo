@@ -160,9 +160,15 @@
     function fixedAmt(f, U) {
       if (f.pct) return Math.round((+st.salary || 0) * f.pct / 100);
       // 매달 조금씩 다른 정기 지출(관리비·달러 결제 구독 등): 최근 실제 금액 3번의 평균
-      if (f.variable && Array.isArray(f.recent) && f.recent.length) {
-        const r = f.recent.slice(-3).map(x => +x.amount || 0);
-        return Math.round(r.reduce((a, b) => a + b, 0) / r.length);
+      // 기록 = 저장된 recent + 이 고정지출과 맞춘 실제 내역(직접 입력·명세서). 같은 달은 실제 내역이 우선
+      if (f.variable) {
+        const byMonth = {};
+        (f.recent || []).forEach(x => { byMonth[x.month] = +x.amount || 0; });
+        const linked = {};
+        tx.filter(t => f.id != null && String(t.fixedId) === String(f.id)).forEach(t => { const m = ymOf(t.date); linked[m] = (linked[m] || 0) + (+t.amount || 0); });
+        Object.assign(byMonth, linked);
+        const months = Object.keys(byMonth).filter(m => !U || m < U || linked[m] != null).sort().slice(-3);
+        if (months.length) return Math.round(months.reduce((a, m) => a + byMonth[m], 0) / months.length);
       }
       if (f.perWeek) return (+f.perWeek || 0) * (U ? mondaysIn(U) : 4);
       return +f.amount || 0;
