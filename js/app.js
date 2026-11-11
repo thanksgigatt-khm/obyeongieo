@@ -296,7 +296,7 @@
         const dt = inM ? tx.filter(t => t.date === key) : [];
         const sum = dt.reduce((s, t) => s + t.amount, 0); wsum += sum;
         const dots = [...new Set(dt.map(t => t.method))].map(id => `<i style="background:${cardOf(id).color}"></i>`).join('');
-        const fx = inM && D.fixed.some(f => f.day === d.getDate()) ? '<span class="fx">고정</span>' : '';
+        const fx = '';                                  // 고정지출 날 표시는 달력이 복잡해 보여서 뺌 (11/11 사용자 요청)
         cells += inM
           ? `<button class="cell ${key === D.today ? 'today' : ''} ${d.getDay() === 0 ? 'sun' : ''}" data-act="day" data-date="${key}" aria-label="${d.getDate()}일 ${sum ? fmt(sum) + '원' : '기록 없음'}">
               <span class="d">${d.getDate()}</span><span class="s num">${sum ? man(sum) : ''}</span><span class="dots">${dots}</span>${fx}</button>`
