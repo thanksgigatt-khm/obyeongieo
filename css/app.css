@@ -292,3 +292,5 @@ main{display:flex;flex-direction:column;gap:14px;padding-top:16px}
 
 /* 들어온 돈 입력 */
 .amount-in.plus input,.amount-in.plus span{color:var(--green)}
+.cell .in{display:block;font-size:10.5px;line-height:1.2;color:var(--green);font-weight:700}
+.cat-ic.in{background:var(--green-soft);color:var(--green);font-weight:800}

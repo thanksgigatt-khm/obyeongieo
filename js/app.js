@@ -285,6 +285,8 @@
     const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
     const tx = monthTx(S.month);
     const total = tx.reduce((s, t) => s + t.amount, 0);
+    const inc = (D.incomes || []).filter(t => t.date.startsWith(S.month));          // 들어온 돈
+    const incTotal = inc.reduce((s, t) => s + t.amount, 0);
     const days = new Date(y, m, 0).getDate();
     const head = ['월', '화', '수', '목', '금', '토', '일'].map(w => `<div class="dow ${w === '일' ? 'sun' : ''}">${w}</div>`).join('') + '<div class="dow wk">주 합계</div>';
     let cells = '';
@@ -295,11 +297,12 @@
         const key = ymd(d), inM = d.getMonth() === m - 1;
         const dt = inM ? tx.filter(t => t.date === key) : [];
         const sum = dt.reduce((s, t) => s + t.amount, 0); wsum += sum;
+        const inSum = inM ? inc.filter(t => t.date === key).reduce((s, t) => s + t.amount, 0) : 0;
         const dots = [...new Set(dt.map(t => t.method))].map(id => `<i style="background:${cardOf(id).color}"></i>`).join('');
         const fx = '';                                  // 고정지출 날 표시는 달력이 복잡해 보여서 뺌 (11/11 사용자 요청)
         cells += inM
-          ? `<button class="cell ${key === D.today ? 'today' : ''} ${d.getDay() === 0 ? 'sun' : ''}" data-act="day" data-date="${key}" aria-label="${d.getDate()}일 ${sum ? fmt(sum) + '원' : '기록 없음'}">
-              <span class="d">${d.getDate()}</span><span class="s num">${sum ? man(sum) : ''}</span><span class="dots">${dots}</span>${fx}</button>`
+          ? `<button class="cell ${key === D.today ? 'today' : ''} ${d.getDay() === 0 ? 'sun' : ''}" data-act="day" data-date="${key}" aria-label="${d.getDate()}일 ${sum ? '쓴 돈 ' + fmt(sum) + '원' : ''}${inSum ? ' 들어온 돈 ' + fmt(inSum) + '원' : ''}${!sum && !inSum ? '기록 없음' : ''}">
+              <span class="d">${d.getDate()}</span><span class="s num">${sum ? man(sum) : ''}</span>${inSum ? `<span class="in num">+${man(inSum)}</span>` : ''}<span class="dots">${dots}</span>${fx}</button>`
           : `<div class="cell out"><span class="d">${d.getDate()}</span></div>`;
         d.setDate(d.getDate() + 1);
       }
@@ -309,9 +312,14 @@
     const legend = D.cards.map(c => `<span><i class="dot" style="background:${c.color}"></i>${c.name}</span>`).join('');
     const daysSoFar = S.month === D.month ? pd(D.today).getDate() : days;
     return `
-    <section class="card"><div class="label">${monthLabel(S.month)} 쓴 돈</div>
-      <div class="num" style="font-size:28px;font-weight:800;letter-spacing:-.02em">${fmt(total)}원</div>
-      <div class="muted" style="font-size:13px">하루 평균 ${fmt(total / daysSoFar)}원 · 고정지출 제외</div></section>
+    <div class="duo">
+      <section class="card"><div class="label">${monthLabel(S.month)} 쓴 돈</div>
+        <div class="v num">${fmt(total)}원</div>
+        <div class="hint muted">하루 평균 ${fmt(total / daysSoFar)}원</div></section>
+      <section class="card"><div class="label">들어온 돈 <small>(월급 빼고)</small></div>
+        <div class="v num pos">+${fmt(incTotal)}원</div>
+        <div class="hint muted">${inc.length}건</div></section>
+    </div>
     <section class="card" style="padding:14px 10px"><div class="cal">${head}${cells}</div><div class="legend" style="padding:0 6px">${legend}</div></section>`;
   }
 
@@ -319,9 +327,11 @@
     const t = pd(date);
     const list = D.tx.filter(x => x.date === date);
     const sum = list.reduce((s, x) => s + x.amount, 0);
+    const ins = (D.incomes || []).filter(x => x.date === date), inSum = ins.reduce((s, x) => s + x.amount, 0);
     openSheet(`${t.getMonth() + 1}월 ${t.getDate()}일 (${WEEK[t.getDay()]})`,
-      `<div class="stack"><div class="muted">이날 쓴 돈 <b class="num" style="color:var(--text)">${fmt(sum)}원</b></div>
-      ${list.length ? `<ul class="txlist">${list.map(txRow).join('')}</ul>` : '<p class="empty">이날은 기록이 없어요.</p>'}
+      `<div class="stack"><div class="muted">이날 쓴 돈 <b class="num" style="color:var(--text)">${fmt(sum)}원</b>${inSum ? ` · 들어온 돈 <b class="num pos">+${fmt(inSum)}원</b>` : ''}</div>
+      ${ins.length ? `<ul class="txlist">${ins.map(incomeRow).join('')}</ul>` : ''}
+      ${list.length ? `<ul class="txlist">${list.map(txRow).join('')}</ul>` : (ins.length ? '' : '<p class="empty">이날은 기록이 없어요.</p>')}
       ${isOwner() ? `<button class="btn primary block" data-act="input" data-date="${date}">${ICON('plus', 'sm')}이 날짜로 입력</button>` : ''}</div>`);
   }
 
@@ -340,6 +350,8 @@
       <span class="amt num">${fmt(t.amount)}${t.months > 1 ? `<small>월 ${fmt(Math.floor(t.amount / t.months / 100) * 100)}</small>` : ''}</span>
     </button></li>`;
   }
+
+  const incomeRow = t => `<li><button class="tx" data-act="tx" data-id="${t.id}"><span class="cat-ic in">+</span><span class="mid"><span class="memo">${esc(t.memo)}</span><span class="meta">${+t.date.slice(5, 7)}/${+t.date.slice(8)} · ${esc(t.category)}</span></span><span class="amt num pos">+${fmt(t.amount)}</span></button></li>`;
 
   function histView() {
     const H = S.hist;
@@ -363,7 +375,7 @@
     }).join('') : `<div class="card empty">조건에 맞는 기록이 없어요.</div>`;
     const ins = (D.incomes || []).filter(t => t.date.startsWith(S.month)).sort((a, b) => b.date.localeCompare(a.date));
     const inHtml = ins.length ? `<section class="card" style="padding:10px 18px 4px"><div class="dayhead"><span>들어온 돈 ${ins.length}건</span><span class="num pos">+${fmt(ins.reduce((s, x) => s + x.amount, 0))}원</span></div>
-      <ul class="txlist">${ins.map(t => `<li><button class="tx" data-act="tx" data-id="${t.id}"><span class="cat-ic">+</span><span class="mid"><span class="memo">${esc(t.memo)}</span><span class="meta">${+t.date.slice(5, 7)}/${+t.date.slice(8)} · ${esc(t.category)}</span></span><span class="amt num pos">+${fmt(t.amount)}</span></button></li>`).join('')}</ul></section>` : '';
+      <ul class="txlist">${ins.map(incomeRow).join('')}</ul></section>` : '';
     return `
     ${inHtml}
     <label class="search">${ICON('search', 'sm')}<input id="hq" type="search" placeholder="사용처 찾기" value="${esc(H.q)}" aria-label="사용처 찾기"></label>
@@ -479,7 +491,8 @@
     const INC_CATS = ['부수입', '용돈·선물', '환급·캐시백', '기타 수입'];
     const f = Object.assign({ inc: !!(pre && pre.source === 'income'),
       amount: '', memo: '', method: D.cards[0] ? D.cards[0].id : 'cash',
-      category: D.categories.includes('장보기') ? '장보기' : D.categories[0], months: 1, date: D.today, unneeded: false
+      // 실제 화면에서는 분류를 미리 고르지 않음(장보기로 잘못 들어가 예산이 줄던 문제) — 예전 사용처면 자동
+      category: LIVE ? (D.categories.includes('기타') ? '기타' : D.categories[0]) : (D.categories.includes('장보기') ? '장보기' : D.categories[0]), months: 1, date: D.today, unneeded: false
     }, pre || {});
     const draw = el => {
       const hist = f.inc ? [...new Map((D.incomes || []).map(t => [t.memo, t])).values()].slice(0, 8) : memoHistory();
@@ -528,6 +541,11 @@
               months: f.inc || f.method === 'cash' ? 1 : f.months, unneeded: !f.inc && !!f.unneeded, isFixed: !!(old && old.isFixed),
               source: f.inc ? 'income' : ((old && old.source !== 'income' && old.source) || 'manual'), createdAt: (old && old.createdAt) || now
             };
+            // 고정지출(피아노·태권도 등)을 직접 입력했으면 그 고정지출과 맞춤 → 이번 달 예상분 대신 이 금액 (두 번 빠지지 않게)
+            if (!f.inc && !row.fixedId) {
+              const fx = linkFixed(row);
+              if (fx) { row.isFixed = true; row.fixedId = fx.id; if (fx.category && D.categories.includes(fx.category)) row.category = fx.category; toast(`고정지출 ‘${fx.name}’과 맞췄어요. 이번 달은 이 금액으로 계산해요`, 3500); }
+            }
             API.write('내역', row.id, row);
           } else if (edit) Object.assign(D.tx.find(x => x.id === f.id), f);
           else D.tx.push({ ...f, id: 'n' + Date.now(), memo: f.memo.trim(), isFixed: false });
@@ -543,6 +561,16 @@
         }
       });
     });
+  }
+
+  // 직접 입력한 기록이 고정지출인지: 같은 결제 수단, 고정지출 이름의 낱말이 사용처에 있고, 그 달 아직 맞춘 기록이 없을 때
+  function linkFixed(t) {
+    const st = API.settings(), U = t.date.slice(0, 7);
+    const words = n => String(n || '').replace(/\(.*?\)/g, ' ').split(/[\s·_\-/]+/).map(w => w.replace(/(학원|비|요금|료)$/, '')).filter(w => w.length >= 2);
+    const memo = String(t.memo || '').replace(/\s+/g, '');
+    return (st.fixed || []).find(f => f.active !== false && f.method === t.method && (!f.from || f.from <= U) && (!f.until || U <= f.until) &&
+      !D.tx.some(x => x.id !== t.id && String(x.fixedId) === String(f.id) && x.date.slice(0, 7) === U) &&
+      words(f.name).some(w => memo.includes(w)));
   }
 
   function openTx(id) {
