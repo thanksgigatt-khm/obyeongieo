@@ -434,9 +434,10 @@
     }).join('') : '<p class="empty">이 달은 기록이 없어요.</p>';
     // 최근 6개월 흐름
     const months = [5, 4, 3, 2, 1, 0].map(k => addMonth(M, -k));
-    const tot = months.map(m => ({ m, v: C.analyze(m, basis).total }));
-    const tmax = Math.max(1, ...tot.map(x => x.v));
-    const trend = `<div class="trend">${tot.map(x => `<div class="tcol ${x.m === M ? 'on' : ''}"><span class="tv num">${x.v ? man(x.v) : ''}</span><i style="height:${Math.max(2, x.v / tmax * 100)}%"></i><span class="tm">${Number(x.m.slice(5))}월</span></div>`).join('')}</div>`;
+    // 기록이 15건 안 되는 달은 숫자가 작게 보여 오해하기 쉬워서 '기록 적음'으로만
+    const tot = months.map(m => { const a = m === M ? A : C.analyze(m, basis); return { m, v: a.total, few: m !== M && a.items.filter(i => !i.virtual).length < 15 }; });
+    const tmax = Math.max(1, ...tot.filter(x => !x.few).map(x => x.v));
+    const trend = `<div class="trend">${tot.map(x => `<div class="tcol ${x.m === M ? 'on' : ''} ${x.few ? 'few' : ''}"><span class="tv num">${x.few ? '기록<br>적음' : x.v ? man(x.v) : ''}</span><i style="height:${x.few ? 2 : Math.max(2, x.v / tmax * 100)}%"></i><span class="tm">${Number(x.m.slice(5))}월</span></div>`).join('')}</div>`;
     const ins = C.insights(A, M).sort((a, b) => b.amt - a.amt).map(i => `<div class="insight"><span class="ic ${i.cls === 'bad' ? 'bad' : i.cls === 'up' ? 'up' : 'n'}">${ICON(INS_IC[i.cls] || 'sparkle', 'sm')}</span>
       <div class="ins-b"><div class="ins-h"><b>${esc(i.k)}</b><span class="num">${fmt(i.amt)}원</span></div><div class="ins-t">${i.html}</div></div></div>`).join('');
     const H = D.home ? D.home.held : { kind: '배달', count: 0 };
