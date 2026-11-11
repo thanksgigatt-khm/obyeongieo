@@ -338,3 +338,35 @@ main{display:flex;flex-direction:column;gap:14px;padding-top:16px}
 .seg3 button{border:0;background:none;border-radius:8px;padding:6px 9px;font-size:13px;font-weight:600;min-height:34px}
 .seg3 button[aria-pressed="true"]{background:var(--navy-800);color:var(--on-navy)}
 @media (max-width:380px){.cart-add{grid-template-columns:1fr 1fr}.cart-add .btn{grid-column:1/-1}}
+
+/* 8단계: 분석 */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.split>div{background:var(--sunk);border-radius:var(--r-btn);padding:10px 12px;display:flex;flex-direction:column}
+.split small{font-size:12px;color:var(--muted)}
+.split b{font-size:18px;font-weight:800}
+.split span{font-size:12px;color:var(--muted)}
+.trend{display:flex;align-items:flex-end;gap:8px;height:150px;padding-top:4px}
+.tcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;min-width:0}
+.tcol i{display:block;width:100%;max-width:38px;background:var(--navy-600);opacity:.35;border-radius:6px 6px 2px 2px}
+.tcol.on i{opacity:1;background:var(--navy-800)}
+.tcol .tv{font-size:11px;color:var(--muted);white-space:nowrap}
+.tcol.on .tv{color:var(--text);font-weight:700}
+.tcol .tm{font-size:12px;color:var(--muted)}
+.tcol.on .tm{color:var(--text);font-weight:700}
+.ana-row{display:block;width:100%;background:none;border:0;padding:0;text-align:left;font:inherit;color:inherit}
+.cmp{font-size:12px;font-weight:700}
+.cmp.up{color:#b5562a}
+.cmp.down{color:var(--green)}
+.insight .ic.up{background:#fbe9dc;color:#b5562a}
+.insight .ic.bad{background:#f8e1d4;color:#a2401c}
+.ins-b{flex:1;min-width:0}
+.ins-h{display:flex;justify-content:space-between;gap:8px;font-size:14.5px}
+.ins-h .num{font-weight:800;white-space:nowrap}
+.ins-t{font-size:13.5px;line-height:1.6;margin-top:2px;overflow-wrap:anywhere}
+.ins-t .small{font-size:12.5px;margin-top:3px}
+.ins-t .muted{color:var(--muted)}
+.ana-list .ana-tx{width:100%;display:flex;align-items:center;gap:10px;background:none;border:0;padding:10px 12px;text-align:left;font:inherit;color:inherit;min-height:52px}
+.ana-list .ana-tx>span{flex:1;min-width:0}
+.ana-list .ana-tx b{display:block;font-size:14.5px;overflow-wrap:anywhere}
+.ana-list .ana-tx small{display:block;font-size:12px;color:var(--muted)}
+.ana-list .ana-tx>.num{flex:none;font-weight:700}

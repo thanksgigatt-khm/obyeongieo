@@ -424,7 +424,7 @@
       const fee = I.filter(i => i.category === '수수료·연회비');
       if (fee.length) add('수수료·연회비', 'bad', `${fee.map(i => esc(i.memo)).join(' · ')}<div class="small muted">큰 금액을 할부할 땐 무이자인지 꼭 확인하세요.</div>`, sum(fee));
       const etc = I.filter(i => i.category === '기타' && !i.fixed && !/수수료|연회비/.test(i.memo)).sort((a, b) => b.amount - a.amount);
-      if (etc.length) add('확인 필요', 'rep', `분류가 '기타'인 지출: ${etc.slice(0, 5).map(i => `${esc(i.memo)} <span class="num">${won(i.amount)}</span>`).join(' · ')}<div class="small muted">정기결제라면 해지할 수 있는 것인지 확인해 보세요. '수정'에서 분류를 바꿀 수 있어요.</div>`, sum(etc));
+      if (etc.length) add('확인 필요', 'rep', `분류가 '기타'인 지출: ${etc.slice(0, 5).map(i => `${esc(i.memo)} <span class="num">${won(i.amount)}</span>`).join(' · ')}<div class="small muted">정기결제라면 해지할 수 있는 것인지 확인해 보세요. 설정 → 분류 정리에서 한꺼번에 바꿀 수 있어요.</div>`, sum(etc));
       if (A.flagged.length) add('불필요 표시', 'bad', `직접 '불필요'로 표시한 지출 ${A.flagged.length}건<div class="small muted">${A.flagged.slice(0, 4).map(i => `${esc(i.memo)} ${won(i.amount)}`).join(' · ')}</div>`, sum(A.flagged));
       for (const r of A.rising) add('평소보다 ↑', 'up', `${esc(r.c)} — 최근 ${A.prevMs.length}개월 평균 ${won(r.avg)}원보다 ${Math.round((r.now / r.avg - 1) * 100)}% 많아요`, r.diff);
       for (const r of A.repeats.filter(r => !['쿠팡', '쿠팡페이', '네이버페이'].includes(r.k)).slice(0, 3)) add('반복 지출', 'rep', `'${esc(r.k)}' ${r.n}회 <span class="small muted">(${esc(r.cat)})</span>`, r.s);

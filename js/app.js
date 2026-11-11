@@ -66,7 +66,7 @@
         goalsSaved: (st.goals || []).filter(g => g.status === 'done').reduce((s, g) => s + (+g.monthly || 0), 0)
       };
     }
-    return { live: true, ready, today, month, cards, categories, tx, incomes, fixed, plans, home, insights: [], heldYear: { count: heldY.length, saved: sumAmt(heldY) } };
+    return { live: true, C, ready, today, month, cards, categories, tx, incomes, fixed, plans, home, insights: [], heldYear: { count: heldY.length, saved: sumAmt(heldY) } };
   }
   if (LIVE) D = liveData();
 
@@ -390,6 +390,7 @@
 
   // ----- 분석 -----
   function anaView() {
+    if (LIVE && D.ready && D.C) return anaLive();
     const tx = monthTx(S.month);
     const by = {};
     if (S.anaMode === 'bill') {
@@ -415,6 +416,54 @@
     ${ins ? `<section class="card"><h2>이번 달 살펴보기</h2><div class="stack" style="gap:14px">${ins}</div></section>` : ''}
     <section class="card"><h2>참았어요 누적</h2><p style="margin:0;font-size:14px">올해 참은 횟수 <b class="num">${fmt(HY.count)}번</b> · 약 <b class="num pos">${fmt(HY.saved)}원</b> 아꼈어요</p>
       <p class="muted" style="margin:6px 0 0;font-size:12.5px">이번 달은 ${H.kind} ${H.count}번이에요.</p></section>`;
+  }
+
+  // 실제 데이터 분석 (명세서 4-8): Calc.analyze·insights + 6개월 흐름 + 분류 누르면 그 내역
+  const INS_IC = { up: 'trend', rep: 'repeat', bad: 'sparkle' };
+  function anaLive() {
+    const C = D.C, M = S.month, basis = S.anaMode;
+    const A = C.analyze(M, basis);
+    const pct = v => A.total ? Math.round(v / A.total * 100) : 0;
+    const max = A.cats.length ? A.cc[A.cats[0]] : 1;
+    const bars = A.cats.length ? A.cats.map(k => {
+      const v = A.cc[k], av = A.avg[k];
+      const cmp = A.prevMs.length && av > 0 && Math.abs(v - av) >= 10000
+        ? `<span class="cmp ${v > av ? 'up' : 'down'}">평소보다 ${v > av ? '+' : '−'}${fmt(Math.abs(v - av))}</span>` : '';
+      return `<button class="bar-row ana-row" data-act="anacat" data-cat="${esc(k)}"><div class="top"><b>${esc(k)} <small class="muted">${A.cnt[k]}건</small></b><span class="r"><strong class="num">${fmt(v)}</strong> · ${pct(v)}%</span></div>
+        <div class="bar"><i style="width:${v / max * 100}%"></i></div>${cmp ? `<div class="sub">${cmp}</div>` : ''}</button>`;
+    }).join('') : '<p class="empty">이 달은 기록이 없어요.</p>';
+    // 최근 6개월 흐름
+    const months = [5, 4, 3, 2, 1, 0].map(k => addMonth(M, -k));
+    const tot = months.map(m => ({ m, v: C.analyze(m, basis).total }));
+    const tmax = Math.max(1, ...tot.map(x => x.v));
+    const trend = `<div class="trend">${tot.map(x => `<div class="tcol ${x.m === M ? 'on' : ''}"><span class="tv num">${x.v ? man(x.v) : ''}</span><i style="height:${Math.max(2, x.v / tmax * 100)}%"></i><span class="tm">${Number(x.m.slice(5))}월</span></div>`).join('')}</div>`;
+    const ins = C.insights(A, M).sort((a, b) => b.amt - a.amt).map(i => `<div class="insight"><span class="ic ${i.cls === 'bad' ? 'bad' : i.cls === 'up' ? 'up' : 'n'}">${ICON(INS_IC[i.cls] || 'sparkle', 'sm')}</span>
+      <div class="ins-b"><div class="ins-h"><b>${esc(i.k)}</b><span class="num">${fmt(i.amt)}원</span></div><div class="ins-t">${i.html}</div></div></div>`).join('');
+    const H = D.home ? D.home.held : { kind: '배달', count: 0 };
+    const HY = D.heldYear;
+    return `
+    <div class="seg" role="group" aria-label="기준">
+      <button data-act="ana" data-v="bill" aria-pressed="${basis === 'bill'}">나가는 돈 기준</button>
+      <button data-act="ana" data-v="use" aria-pressed="${basis === 'use'}">쓴 돈 기준</button></div>
+    <section class="card"><h2>${monthLabel(M)} <small>${basis === 'bill' ? '이 달 통장에서 나가는 돈 · 할부는 회차만 · 고정 포함' : '이 달에 쓴 돈 · 할부는 전체 금액'}</small></h2>
+      <div class="num" style="font-size:28px;font-weight:800;margin:-2px 0 10px">${fmt(A.total)}원</div>
+      <div class="split"><div><small>꼭 필요한 돈</small><b class="num">${fmt(A.need)}</b><span>${pct(A.need)}%</span></div><div><small>줄일 수 있는 돈</small><b class="num">${fmt(A.want)}</b><span>${pct(A.want)}%</span></div></div>
+      <ul class="rows" style="margin-top:8px"><li><span>카드</span><b class="num">${fmt(A.card)}</b></li><li><span>현금·이체</span><b class="num">${fmt(A.cash)}</b></li>
+        ${A.fixed ? `<li><span>그중 고정지출</span><b class="num">${fmt(A.fixed)}</b></li>` : ''}${A.inst ? `<li><span>그중 할부</span><b class="num">${fmt(A.inst)}</b></li>` : ''}</ul></section>
+    <section class="card"><h2>최근 6개월 <small>${basis === 'bill' ? '나가는 돈' : '쓴 돈'}</small></h2>${trend}</section>
+    ${ins ? `<section class="card"><h2>이번 달 살펴보기 <small>금액 큰 순</small></h2><div class="stack" style="gap:16px">${ins}</div></section>` : ''}
+    <section class="card"><h2>분류별 <small>${A.prevMs.length ? `누르면 내역 · 비교는 최근 ${A.prevMs.length}개월 평균` : '누르면 내역'}</small></h2><div class="bars">${bars}</div></section>
+    <section class="card"><h2>참았어요 누적</h2><p style="margin:0;font-size:14px">올해 참은 횟수 <b class="num">${fmt(HY.count)}번</b> · 약 <b class="num pos">${fmt(HY.saved)}원</b> 아꼈어요</p>
+      <p class="muted" style="margin:6px 0 0;font-size:12.5px">이번 달은 ${H.kind} ${H.count}번이에요.</p></section>`;
+  }
+  function openAnaCat(cat) {
+    const A = D.C.analyze(S.month, S.anaMode);
+    const list = A.items.filter(i => i.category === cat).sort((a, b) => b.amount - a.amount);
+    const rows = list.map(i => {
+      const tag = [i.fixed ? '고정' : '', i.inst && i.inst.k ? `할부 ${i.inst.k}/${i.inst.n}` : i.inst ? `${i.inst.n}개월 할부` : '', i.t ? i.t.date.slice(5).replace('-', '/') : '예상'].filter(Boolean).join(' · ');
+      return `<li>${i.t ? `<button class="ana-tx" data-act="tx" data-id="${esc(i.t.id)}">` : '<div class="ana-tx">'}<span><b>${esc(i.memo)}</b><small>${cardOf(i.method).name} · ${tag}</small></span><b class="num">${fmt(i.amount)}</b>${i.t ? '</button>' : '</div>'}</li>`;
+    }).join('');
+    openSheet(`${cat} · ${monthLabel(S.month)}`, `<div class="stack"><div class="set-sum">${list.length}건 <b class="num">${fmt(list.reduce((s, i) => s + i.amount, 0))}원</b></div><ul class="set-list ana-list">${rows}</ul></div>`, null, 'wide');
   }
 
   // ----- 더보기 -----
@@ -881,6 +930,7 @@
     else if (a === 'tx') openTx(b.dataset.id);
     else if (a === 'hf') { const k = b.dataset.k; S.hist[k] = k === 'bad' ? !S.hist.bad : b.dataset.v; render(); }
     else if (a === 'ana') { S.anaMode = b.dataset.v; render(); }
+    else if (a === 'anacat') openAnaCat(b.dataset.cat);
     else if (a === 'loans' || (a === 'menu' && b.dataset.k === 'loans')) openLoans();
     else if (a === 'menu' && b.dataset.k === 'import' && LIVE) openImport();
     else if (a === 'menu' && b.dataset.k === 'upload' && LIVE) openUpload();
