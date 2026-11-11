@@ -1,0 +1,9 @@
+{
+  "name": "obyeongieo",
+  "private": true,
+  "description": "오병이어 가계부 (PWA)",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node tools/check-repo.js"
+  }
+}

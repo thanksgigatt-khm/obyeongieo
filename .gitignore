@@ -1,0 +1,20 @@
+# 개인정보 지키기 (명세서 0-1, 9장): 데이터·명세서·비밀값은 절대 올리지 않는다
+*.json
+!package.json
+*.xls
+*.xlsx
+*.pdf
+*.csv
+data/
+.env
+.env.*
+service-account*
+*.key
+*.pem
+node_modules/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 기획 문서(가족 이름 등)는 이 PC에만 둔다
+docs/
