@@ -51,7 +51,7 @@
         const hint = f.hint ? `<small class="muted" style="font-size:12px">${f.hint}</small>` : '';
         if (f.type === 'note') return `<p class="muted" style="margin:0;font-size:13px;line-height:1.6">${f.label}</p>`;
         if (f.type === 'toggle') return `<label class="toggle"><span>${f.label}${hint ? '<br>' + hint : ''}</span><input class="switch" type="checkbox" data-k="${f.k}" ${val ? 'checked' : ''}></label>`;
-        if (f.type === 'select') return `<div class="field"><span>${f.label}</span><div class="chips scroll">${f.options().map(([ov, ol]) =>
+        if (f.type === 'select') return `<div class="field"><span>${f.label}</span><div class="chips wrap-chips">${f.options().map(([ov, ol]) =>
           `<button class="chip" type="button" data-k="${f.k}" data-v="${esc(ov)}" aria-pressed="${String(val) === String(ov)}">${esc(ol)}</button>`).join('')}</div>${hint}</div>`;
         const shown = val == null || val === '' ? '' : f.type === 'money' ? fmt(val) : val;
         const attrs = f.type === 'month' ? 'type="month"' : f.type === 'text' ? 'type="text" autocomplete="off"' : 'inputmode="numeric" autocomplete="off"';
