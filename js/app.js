@@ -251,12 +251,12 @@
     const canRec = LIVE && isOwner() && S.month === D.today.slice(0, 7);
     const recBtn = f => { const r = recOf(f);
       return r ? `<button class="rec done" data-act="tx" data-id="${esc(r.id)}">${ICON('check', 'sm')}${r.date.slice(5).replace('-', '/')}</button>`
-        : canRec ? `<button class="rec" data-act="fxrec" data-id="${esc(f.id)}">기록</button>` : ''; };
+        : canRec && f.method === 'cash' ? `<button class="rec" data-act="fxrec" data-id="${esc(f.id)}">기록</button>` : f.method !== 'cash' ? '<span class="rec card">명세서로</span>' : ''; };
     const recN = D.fixed.filter(f => recOf(f)).length;
     const fixedList = S.fixedOpen ? `<div class="fold"><ul class="rows fx-rows">${D.fixed.map(f => `<li><span>${esc(f.name)}<small>${f.day ? f.day + '일 · ' : ''}${cardOf(f.method).name}${f.pct ? ` · 급여 ${f.pct}%` : ''}${f.perWeek ? ` · 주 ${fmt(f.perWeek)}원 × ${mondaysIn(S.month)}주` : ''}</small></span><b class="num">${fmt(f.amount)}</b>${recBtn(f)}</li>`).join('')}</ul></div>` : '';
     // 오늘까지 나갔어야 할 고정지출 중 아직 안 적은 것 → 매일 기록 습관
-    const dueFx = canRec ? D.fixed.filter(f => f.day && +f.day <= +D.today.slice(8, 10) && !recOf(f)) : [];
-    const dueCard = dueFx.length ? `<section class="card"><h2>기록할 고정지출 <small>나갔으면 [기록]을 눌러 주세요</small></h2><ul class="rows fx-rows">${dueFx.map(f =>
+    const dueFx = canRec ? D.fixed.filter(f => f.method === 'cash' && f.day && +f.day <= +D.today.slice(8, 10) && !recOf(f)) : [];     // 카드는 명세서가 확인해 줌
+    const dueCard = dueFx.length ? `<section class="card"><h2>기록할 고정지출 <small>현금·이체로 나갔으면 [기록]</small></h2><ul class="rows fx-rows">${dueFx.map(f =>
       `<li><span>${esc(f.name)}<small>${f.day}일 · ${cardOf(f.method).name}</small></span><b class="num">${fmt(f.amount)}</b>${recBtn(f)}</li>`).join('')}</ul></section>` : '';
 
     return `
