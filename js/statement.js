@@ -245,6 +245,8 @@
     const cctx = { ...ctx, memoCats };
     const C = Calc.create({ settings: ctx.settings || { cards: ctx.cards }, tx: [] });
     const usedFixed = new Set();
+    const usedManual = new Set();
+    const manual = e => e.source === 'manual' && !e.importKey && !usedManual.has(e.id);
     const rows = [];
     const add = (x, extra) => {
       const method = cardOfLabel(x.card);
@@ -267,14 +269,21 @@
         // 손으로 넣었거나 옮겨 온 기록: 같은 카드사 카드 + 같은 금액이면 날짜가 조금 달라도 같은 것으로 본다
         // (카드사 안에서 카드를 다르게 골라도 겹치지 않게)
         const peers = new Set([method, ...(ctx.companyCards || [])].filter(Boolean));
-        const near = existing.find(e => peers.has(e.method) && Math.round(+e.amount) === t.amount && (+e.months || 1) === t.months &&
-          dayDiff(e.date, t.date) <= (t.months > 1 ? 40 : 3));
+        // 명세서가 최종: 직접 적은 기록(manual)과 같은 결제면 그 기록을 명세서 줄로 바꿔 끼운다(replace).
+        // 이미 명세서·옮기기로 들어온 줄과 같으면 건너뜀(dup).
+        const isNear = e => peers.has(e.method) && Math.round(+e.amount) === t.amount && (+e.months || 1) === t.months && dayDiff(e.date, t.date) <= (t.months > 1 ? 40 : 3);
+        const near = existing.find(e => !manual(e) && isNear(e));
+        const nearM = !near && existing.find(e => manual(e) && isNear(e));
         const label = e => `${e.date.slice(5).replace('-', '/')} ${e.memo || ''} ${Math.round(+e.amount).toLocaleString('ko-KR')}원`;
         if (near) { status = 'dup'; why = `이미 있어요 (${label(near)})`; }
+        else if (nearM) { status = 'replace'; t.replaces = nearM.id; usedManual.add(nearM.id); why = `직접 적은 기록과 같아요 (${label(nearM)}) → 명세서로 바꿔요`; }
         else if (!extra.fee) {
-          // 같은 날 같은 카드사, 금액만 조금 다름 → 할인 전 금액으로 적었을 수 있음. 기본은 넣지 않고 확인받기
-          const sim = existing.find(e => peers.has(e.method) && e.date === t.date && Math.abs(+e.amount - t.amount) <= Math.max(3000, t.amount * 0.1));
-          if (sim) { status = 'similar'; why = `비슷한 기록이 있어요 (${label(sim)}) · 다른 거면 체크`; }
+          // 같은 날 같은 카드사, 금액만 조금 다름 → 할인 전 금액으로 적었을 수 있음
+          const isSim = e => peers.has(e.method) && e.date === t.date && Math.abs(+e.amount - t.amount) <= Math.max(3000, t.amount * 0.1);
+          const simM = existing.find(e => manual(e) && isSim(e));
+          const sim = !simM && existing.find(isSim);
+          if (simM) { status = 'replace'; t.replaces = simM.id; usedManual.add(simM.id); why = `직접 적은 기록 (${label(simM)})을 명세서 금액으로 바꿔요`; }
+          else if (sim) { status = 'similar'; why = `비슷한 기록이 있어요 (${label(sim)}) · 다른 거면 체크`; }
         }
       }
       // 고정지출과 맞추기: matchKeyword 또는 이름이 가맹점에 들어 있음, 아니면 같은 카드·같은 금액·결제일 근처
@@ -298,6 +307,9 @@
           const fa = Math.round(C.fixedAmt(f, U));
           if (!byKw && !f.pct && !f.perWeek && !f.variable && fa !== t.amount) t.fixedChange = { id: f.id, name: f.name, from: fa, to: t.amount };
           t.fixedName = f.name;
+          // 고정지출 [기록] 버튼으로 이미 적어 둔 달이면 기본은 넣지 않고 확인받기 (두 번 세지 않게)
+          const mine = status === 'new' && existing.find(e => manual(e) && String(e.fixedId) === String(f.id) && String(e.date).slice(0, 7) === U);
+          if (mine) { status = 'replace'; t.replaces = mine.id; usedManual.add(mine.id); why = `고정지출로 적은 기록 (${mine.date.slice(5).replace('-', '/')} ${Math.round(+mine.amount).toLocaleString('ko-KR')}원) → 명세서로 바꿔요`; }
         }
       }
       rows.push({ t, status, why });

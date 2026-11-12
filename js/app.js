@@ -246,7 +246,18 @@
     const loans = loanList.length;
 
     const fixedTotal = D.fixed.reduce((s, f) => s + f.amount, 0);
-    const fixedList = S.fixedOpen ? `<div class="fold"><ul class="rows">${D.fixed.map(f => `<li><span>${esc(f.name)}<small>${f.day}일 · ${cardOf(f.method).name}${f.pct ? ` · 급여 ${f.pct}%` : ''}${f.perWeek ? ` · 주 ${fmt(f.perWeek)}원 × ${mondaysIn(S.month)}주` : ''}</small></span><b class="num">${fmt(f.amount)}</b></li>`).join('')}</ul></div>` : '';
+    // 고정지출 [기록]: 이번 달 이 고정지출로 적은(또는 명세서로 들어온) 기록이 있는지
+    const recOf = f => LIVE && f.id != null ? D.tx.find(t => String(t.fixedId) === String(f.id) && t.date.slice(0, 7) === S.month) : null;
+    const canRec = LIVE && isOwner() && S.month === D.today.slice(0, 7);
+    const recBtn = f => { const r = recOf(f);
+      return r ? `<button class="rec done" data-act="tx" data-id="${esc(r.id)}">${ICON('check', 'sm')}${r.date.slice(5).replace('-', '/')}</button>`
+        : canRec ? `<button class="rec" data-act="fxrec" data-id="${esc(f.id)}">기록</button>` : ''; };
+    const recN = D.fixed.filter(f => recOf(f)).length;
+    const fixedList = S.fixedOpen ? `<div class="fold"><ul class="rows fx-rows">${D.fixed.map(f => `<li><span>${esc(f.name)}<small>${f.day ? f.day + '일 · ' : ''}${cardOf(f.method).name}${f.pct ? ` · 급여 ${f.pct}%` : ''}${f.perWeek ? ` · 주 ${fmt(f.perWeek)}원 × ${mondaysIn(S.month)}주` : ''}</small></span><b class="num">${fmt(f.amount)}</b>${recBtn(f)}</li>`).join('')}</ul></div>` : '';
+    // 오늘까지 나갔어야 할 고정지출 중 아직 안 적은 것 → 매일 기록 습관
+    const dueFx = canRec ? D.fixed.filter(f => f.day && +f.day <= +D.today.slice(8, 10) && !recOf(f)) : [];
+    const dueCard = dueFx.length ? `<section class="card"><h2>기록할 고정지출 <small>나갔으면 [기록]을 눌러 주세요</small></h2><ul class="rows fx-rows">${dueFx.map(f =>
+      `<li><span>${esc(f.name)}<small>${f.day}일 · ${cardOf(f.method).name}</small></span><b class="num">${fmt(f.amount)}</b>${recBtn(f)}</li>`).join('')}</ul></section>` : '';
 
     return `
     <section class="card today" aria-label="오늘 쓸 수 있는 돈">
@@ -262,6 +273,7 @@
       <section class="card navy"><div class="label">다음 달 정산 예상</div><div class="v num ${H.settleNext < 0 ? 'neg' : 'pos'}">${signed(H.settleNext)}</div>
         <div class="hint">이번 달 카드 사용분 포함</div></section>
     </div>
+    ${dueCard}
     ${flow ? `<section class="card" id="upcoming"><h2>다가오는 결제 <small>날짜순</small></h2><ul class="flow">${flow}</ul>
       ${H.needBy ? `<div class="need">${H.needBy.day}일까지 통장에 <b class="num">${fmt(H.needBy.amount)}원</b>이 필요해요</div>` : ''}</section>` : ''}
     ${env ? `<section class="card"><h2>이번 달 예산 <small>${monthLabel(S.month)}</small></h2><div class="bars">${env}</div>
@@ -275,7 +287,7 @@
     ${loans ? `<section class="card" style="padding-top:8px;padding-bottom:8px">
       <button class="linkrow" data-act="loans"><span>대출 ${loans}건 · 빌린 돈 <b class="num">${fmt(loanLeft)}원</b><small class="muted" style="display:block;font-size:12.5px">이자 매달 ${fmt(loanMonthly)}원</small></span>${ICON('right', 'sm')}</button></section>` : ''}
     <section class="card" style="padding-top:8px;padding-bottom:8px">
-      <button class="linkrow" data-act="fixed" aria-expanded="${S.fixedOpen}"><span>고정지출 <b class="num">${fmt(fixedTotal)}원</b> <span class="muted">(자동)</span></span>${ICON(S.fixedOpen ? 'down' : 'right', 'sm')}</button>${fixedList}</section>
+      <button class="linkrow" data-act="fixed" aria-expanded="${S.fixedOpen}"><span>고정지출 <b class="num">${fmt(fixedTotal)}원</b> <span class="muted">${LIVE ? `(이번 달 기록 ${recN}/${D.fixed.length})` : '(자동)'}</span></span>${ICON(S.fixedOpen ? 'down' : 'right', 'sm')}</button>${fixedList}</section>
     ${H.goalsSaved ? `<p class="saved-goal">줄이기 목표로 매달 ${fmt(H.goalsSaved)}원 줄였어요</p>` : ''}`;
   }
 
@@ -590,7 +602,7 @@
       const bad = el.querySelector('#inBad'); if (bad) bad.addEventListener('change', e => { f.unneeded = e.target.checked; });
       if (!edit && !f.amount) setTimeout(() => a.focus(), 50);
     };
-    openSheet(edit ? '기록 고치기' : '입력', `<div class="stack" id="fx"></div>`, el => {
+    openSheet(edit ? '기록 고치기' : f.fixedId ? '고정지출 기록' : '입력', `<div class="stack" id="fx"></div>`, el => {
       draw(el);
       el.addEventListener('click', e => {
         const b = e.target.closest('[data-act]'); if (!b) return;
@@ -613,6 +625,7 @@
               months: f.inc || f.method === 'cash' ? 1 : f.months, unneeded: !f.inc && !!f.unneeded, isFixed: !!(old && old.isFixed),
               source: f.inc ? 'income' : ((old && old.source !== 'income' && old.source) || 'manual'), createdAt: (old && old.createdAt) || now
             };
+            if (!edit && !f.inc && f.fixedId) { row.fixedId = f.fixedId; row.isFixed = true; }     // 고정지출 [기록] 버튼으로 연 창
             // 고정지출(피아노·태권도 등)을 직접 입력했으면 그 고정지출과 맞춤 → 이번 달 예상분 대신 이 금액 (두 번 빠지지 않게)
             if (!f.inc && !row.fixedId) {
               const fx = linkFixed(row);
@@ -701,8 +714,16 @@
           ...t, id: 'imp_' + (t.id || Math.random().toString(36).slice(2)), amount: +t.amount, months: +t.months || 1,
           unneeded: !!t.unneeded, isFixed: !!t.isFixed, source: 'import', createdAt: t.createdAt || Date.now()
         }));
+        // 명세서 기간 안에 있는데 명세서와 맞지 않은 직접 기록 → 정리할지 보여 드림
+        U.files.forEach((p, fi) => {
+          const all = U.plans[fi].filter(r => r.t.method); if (!all.length) return;
+          const ms = new Set(all.map(r => r.t.method));
+          const from = all.reduce((a, r) => r.t.date < a ? r.t.date : a, '9999'), to = all.reduce((a, r) => r.t.date > a ? r.t.date : a, '');
+          D.tx.filter(x => x.source === 'manual' && !x.importKey && ms.has(x.method) && x.date >= from && x.date <= to && !replaced.has(x.id) && !report.left.includes(x)).forEach(x => report.left.push(x));
+        });
         S.importing = rows.length;
         API.writeMany('내역', rows);
+        replaced.forEach(id => API.remove('내역', id));
         parsed = null;
         closeSheet(); S.tab = 'home'; store.set('tab', 'home'); S.month = ymd(new Date()).slice(0, 7);
         D = liveData(); render(); window.scrollTo(0, 0);
@@ -764,7 +785,7 @@
         rows.forEach((r, i) => {
           r.key = p.fileName + '#' + i;
           if (U.cats[r.key]) r.t.category = U.cats[r.key];
-          r.on = r.status === 'new' ? !U.skip[r.key] : !!U.add[r.key];
+          r.on = r.status === 'new' || r.status === 'replace' ? !U.skip[r.key] : !!U.add[r.key];
         });
         pool = pool.concat(rows.filter(r => r.on && r.t.method).map(r => r.t));
         return rows;
@@ -806,7 +827,7 @@
         return `<section class="up-sec"><div class="up-h"><b>${esc(p.companyName)}</b>
             <select class="inp sm" data-up="bill" data-fi="${fi}" aria-label="청구 월">${months.map(m => `<option value="${m}" ${m === p.billMonth ? 'selected' : ''}>${fmtMonth(m)} 청구${p.predicted && m === p.billMonth ? '(예정)' : ''}</option>`).join('')}</select>
             ${p.billFrom === 'guess' ? '<small class="muted">청구 월이 파일에 없어서 짐작했어요. 맞는지 봐 주세요</small>' : ''}</div>
-          <p class="up-sum">새로 넣기 <b>${on.length}</b>건 · 이미 있어서 건너뜀 ${cnt('dup')}건${cnt('similar') ? ` · <b class="warnline">비슷해서 확인 필요 ${cnt('similar')}건</b>` : ''}${p.skippedZero ? ` · 0원 ${p.skippedZero}건` : ''}${cnt('nocard') ? ` · <b class="warnline">카드 고르기 필요 ${cnt('nocard')}건</b>` : ''}<br>
+          <p class="up-sum">새로 넣기 <b>${on.length}</b>건${cnt('replace') ? ` (직접 적은 기록 ${cnt('replace')}건은 명세서로 바꿈)` : ''} · 이미 있어서 건너뜀 ${cnt('dup')}건${cnt('similar') ? ` · <b class="warnline">비슷해서 확인 필요 ${cnt('similar')}건</b>` : ''}${p.skippedZero ? ` · 0원 ${p.skippedZero}건` : ''}${cnt('nocard') ? ` · <b class="warnline">카드 고르기 필요 ${cnt('nocard')}건</b>` : ''}<br>
             고정지출과 맞춤 ${matched}건 · 분류 ‘기타’ ${etc}건 ${chk}</p>
           <button class="linkrow" data-up="open" data-fi="${fi}" aria-expanded="${!!U.open[fi]}"><span>내역 ${rows.length}줄 보기·고치기</span>${ICON(U.open[fi] ? 'down' : 'right', 'sm')}</button>
           ${U.open[fi] ? `<div class="up-table"><table><thead><tr><th></th><th>날짜</th><th>사용처</th><th class="r">금액</th><th>분류</th></tr></thead><tbody>${list}</tbody></table></div>` : ''}</section>`;
@@ -850,7 +871,7 @@
         if (k === 'card') U.map[t.dataset.k] = t.value;
         else if (k === 'bill') Statement.setBillMonth(U.files[+t.dataset.fi], t.value);
         else if (k === 'cat') U.cats[t.dataset.key] = t.value;
-        else if (k === 'on') { const r = U.plans.flat().find(x => x.key === t.dataset.key); if (r.status === 'new') U.skip[r.key] = !t.checked; else U.add[r.key] = t.checked; }
+        else if (k === 'on') { const r = U.plans.flat().find(x => x.key === t.dataset.key); if (r.status === 'new' || r.status === 'replace') U.skip[r.key] = !t.checked; else U.add[r.key] = t.checked; }
         else if (k === 'fx') U.fixedOk[t.dataset.id] = t.checked;
         else return;
         draw(el);
@@ -865,10 +886,22 @@
         const s = st(), rows = [], rules = { ...(s.rules || {}) }, map = { ...(s.cardNameMap || {}) };
         let matched = 0;
         const usedIds = new Set();
+        const replaced = new Set(), report = { pairs: [], missed: [], left: [] };
         U.files.forEach((p, fi) => {
           const on = U.plans[fi].filter(r => r.on && r.t.method);
           on.forEach(r => {
             const t = { ...r.t }; delete t.fixedChange; delete t.fixedName;
+            // 직접 적은 기록을 명세서 줄로 바꿈: 혜미님이 고른 분류·고정지출·불필요 표시는 이어받음
+            if (t.replaces) {
+              const m = D.tx.find(x => x.id === t.replaces);
+              if (m) {
+                if (m.category && m.category !== '기타') t.category = m.category;
+                if (m.fixedId && !t.fixedId) { t.fixedId = m.fixedId; t.isFixed = true; }
+                if (m.unneeded) t.unneeded = true;
+                report.pairs.push({ m, t: r.t });
+              }
+              replaced.add(t.replaces); delete t.replaces;
+            } else if (r.status === 'new') report.missed.push(r.t);
             // 같은 명세서 줄은 늘 같은 id → 다시 올려도 같은 줄을 고쳐 씀. 같은 날 같은 곳 같은 금액이 정말 두 번이면 뒤에 번호
             let id = 's' + hashId(t.importKey), n = 2;
             while (usedIds.has(id)) id = 's' + hashId(t.importKey) + '_' + n++;
@@ -920,8 +953,32 @@
         D = liveData(); render(); window.scrollTo(0, 0);
         API.log(`명세서 가져오기: 파일 ${U.files.length}개, 내역 ${rows.length}줄 보냄`);
         toast(`${rows.length}건을 시트에 저장하는 중이에요${matched ? ` (고정지출 ${matched}건 맞춤)` : ''}. 끝나면 알려 드릴게요`, 4000);
+        if (report.pairs.length || report.left.length) openRecordReport(report);
       }
     }, 'wide');
+  }
+
+  // 명세서를 올린 뒤: 내가 직접 적은 기록이 명세서와 얼마나 맞았는지 + 정리할 것
+  function openRecordReport(R) {
+    const sum = a => a.reduce((s, x) => s + (+x.amount || 0), 0);
+    const exact = R.pairs.filter(p => Math.round(+p.m.amount) === p.t.amount).length;
+    const stmtTotal = sum(R.pairs.map(p => p.t)) + sum(R.missed);
+    const rate = stmtTotal ? Math.round(sum(R.pairs.map(p => p.t)) / stmtTotal * 100) : 0;
+    const wrote = R.pairs.length + R.left.length;
+    const diff = R.pairs.filter(p => Math.round(+p.m.amount) !== p.t.amount);
+    const row = t => `<li><button class="ana-tx" data-act="tx" data-id="${esc(t.id)}"><span><b>${esc(t.memo)}</b><small>${t.date.slice(5).replace('-', '/')} · ${cardOf(t.method).name}</small></span><b class="num">${fmt(t.amount)}</b></button></li>`;
+    openSheet('명세서와 맞춰 봤어요', `<div class="stack">
+      <div class="shop-top"><div><small>명세서 금액 중 직접 적은 비율</small><b class="num">${rate}%</b></div><div><small>직접 적은 기록</small><b class="num">${R.pairs.length} / ${wrote}건 맞음</b></div></div>
+      <ul class="rows">
+        <li><span>명세서와 맞은 기록<small>금액까지 똑같은 것 ${exact}건</small></span><b class="num">${R.pairs.length}건</b></li>
+        <li><span>적지 않았던 결제<small>명세서에서 새로 채웠어요</small></span><b class="num">${R.missed.length}건 · ${fmt(sum(R.missed))}원</b></li>
+      </ul>
+      ${diff.length ? `<div><h4 class="set-h">금액이 달랐던 것 <small class="muted">명세서 금액으로 바꿨어요</small></h4><ul class="rows">${diff.map(p =>
+        `<li><span>${esc(p.t.memo)}<small>적은 금액 ${fmt(p.m.amount)}원</small></span><b class="num">${fmt(p.t.amount)}</b></li>`).join('')}</ul></div>` : ''}
+      ${R.left.length ? `<div><h4 class="set-h">명세서에 없는 직접 기록 ${R.left.length}건</h4>
+        <p class="muted" style="margin:0 0 8px;font-size:13px;line-height:1.6">날짜나 금액을 다르게 적어서 짝을 못 찾은 것일 수 있어요. 명세서 내역과 겹치면 눌러서 지워 주세요. 아직 청구 안 된 결제면 그대로 두면 돼요.</p>
+        <ul class="set-list ana-list">${R.left.map(row).join('')}</ul></div>` : ''}
+      <button class="btn primary block" data-act="close">확인</button></div>`, null, 'wide');
   }
 
   const STEP_TEXT = {
@@ -945,6 +1002,11 @@
     else if (a === 'month') { S.month = addMonth(S.month, Number(b.dataset.k)); render(); }
     else if (a === 'input') openInput(b.dataset.date ? { date: b.dataset.date } : null);
     else if (a === 'fixed') { S.fixedOpen = !S.fixedOpen; render(); }
+    else if (a === 'fxrec') {
+      const f = D.fixed.find(x => String(x.id) === b.dataset.id); if (!f) return;
+      const cat = f.category || Calc.guessCat(f.name);
+      openInput({ memo: f.name, amount: Math.round(f.amount), method: f.method || 'cash', months: 1, date: D.today, fixedId: f.id, ...(D.categories.includes(cat) ? { category: cat } : {}) });
+    }
     else if (a === 'tip') { S.tip++; render(); }
     else if (a === 'held') { if (LIVE && window.OBYE_EXTRAS) OBYE_EXTRAS.held(UI_TOOLS); else toast('참았어요! 잘하셨어요 (예시 화면이라 기록되지 않아요)'); }
     else if (a === 'shop' && LIVE && window.OBYE_EXTRAS) OBYE_EXTRAS.shop(UI_TOOLS);

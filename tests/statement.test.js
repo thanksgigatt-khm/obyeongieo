@@ -158,3 +158,24 @@ test('매달 달라요 표시한 고정지출은 금액이 달라도 묻지 않�
   assert.equal(r.t.fixedId, 'f7');
   assert.equal(r.t.fixedChange, undefined);
 });
+
+test('직접 적은 기록은 명세서로 바꿔 끼움: 같은 금액·3일 안, 같은 날 금액만 다름, 고정지출로 적은 것', () => {
+  const p = St.parse(St.htmlRows(HYUNDAI), 'hyundaicard_20261110.xls', '2026-11-11');
+  const existing = [
+    { id: 'm1', source: 'manual', method: 'H1', date: '2026-10-07', amount: 12000, memo: '마트', months: 1 },   // 2일 차이, 같은 금액
+    { id: 'm2', source: 'manual', method: 'H1', date: '2026-10-06', amount: 5500, memo: '빵', months: 1 }        // 같은 날, 할인 전 금액
+  ];
+  const rows = St.plan(p, () => 'H1', { cards, tx: existing, fixed: [], categories, rules: {}, companyCards: ['H1', 'H2'] });
+  const mart = rows.find(r => r.t.memo === '동네마트'), bread = rows.find(r => r.t.memo === '(주)빵집');
+  assert.equal(mart.status, 'replace'); assert.equal(mart.t.replaces, 'm1');
+  assert.equal(bread.status, 'replace'); assert.equal(bread.t.replaces, 'm2');
+  // 한 기록은 한 줄하고만 짝지음
+  assert.equal(rows.filter(r => r.t.replaces === 'm1').length, 1);
+
+  const w = St.parse(WOORI, 'report.xls', '2026-11-11');
+  const fixed = [{ id: 'f9', name: '수학학원', amount: 200000, method: 'W', day: 2, category: '아이·교육' }];
+  const mine = [{ id: 'm3', source: 'manual', method: 'W', date: w.items.find(x => /수학/.test(x.merchant)).date.slice(0, 8) + '28', amount: 180000, memo: '수학학원', months: 1, fixedId: 'f9' }];
+  const wr = St.plan(w, () => 'W', { cards, tx: mine, fixed, categories, rules: {}, companyCards: ['W'] });
+  const r = wr.find(x => x.t.memo === '최고수학학원');
+  assert.equal(r.status, 'replace'); assert.equal(r.t.replaces, 'm3'); assert.equal(r.t.fixedId, 'f9');
+});
