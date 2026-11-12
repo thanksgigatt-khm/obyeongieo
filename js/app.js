@@ -54,9 +54,9 @@
         upcoming: h.items.flatMap(u => {
           if (u.kind === 'pay') return [{ day: u.day, kind: 'pay', title: u.title || '월급', amount: u.amount, outNow: u.outNow, after: u.after }];
           const groups = {};
-          u.parts.forEach(pt => { const base = cname(pt.id).replace(/\s*\(.*\)\s*$/, ''); (groups[base] ??= { n: 0, amount: 0 }); groups[base].n++; groups[base].amount += pt.amount; });
+          u.parts.forEach(pt => { const base = cname(pt.id).replace(/\s*\(.*\)\s*$/, ''); (groups[base] ??= { n: 0, amount: 0, ids: [] }); groups[base].n++; groups[base].amount += pt.amount; groups[base].ids.push(pt.id); });
           return Object.entries(groups).sort((a, b) => b[1].amount - a[1].amount).map(([base, g]) =>
-            ({ day: u.day, kind: 'card', title: base + ' 결제', sub: g.n > 1 ? `${g.n}장 합쳐서 · 이번 달 청구` : '이번 달 청구', amount: g.amount }));
+            ({ day: u.day, kind: 'card', title: base + ' 결제', sub: g.n > 1 ? `${g.n}장 합쳐서 · 이번 달 청구` : '이번 달 청구', amount: g.amount, ids: g.ids }));
         }),
         needBy: h.needBy,
         debts: h.debts.map(d => ({ name: d.name, total: d.total, paid: d.paid, done: d.doneMonth ? ymLabel(d.doneMonth) : '' })),
@@ -212,7 +212,7 @@
     const flow = H.upcoming.map(u => `<li>
       <span class="dchip ${u.kind === 'pay' ? 'pay' : ''}"><b>${u.day}</b><span>일</span></span>
       <span class="what">${esc(u.title)}<small>${u.kind === 'pay' ? `바로 나가는 돈 ${fmt(u.outNow)}원 · 남는 돈 ${fmt(u.after)}원` : esc(u.sub)}</small></span>
-      <span class="amt num ${u.kind === 'pay' ? 'pos' : ''}">${u.kind === 'pay' ? '+' : ''}${fmt(u.amount)}</span></li>`).join('');
+      <span class="amt num ${u.kind === 'pay' ? 'pos' : ''}">${u.kind === 'pay' ? '+' : ''}${fmt(u.amount)}${u.kind === 'card' && LIVE && isOwner() && u.ids ? `<button class="rec paid" data-act="billpaid" data-ids="${esc(u.ids.join(','))}">냈어요</button>` : ''}</span></li>`).join('');
 
     const env = envelopes(S.month).map(e => {
       const s = barState(e.ratio);
@@ -1002,6 +1002,12 @@
     else if (a === 'month') { S.month = addMonth(S.month, Number(b.dataset.k)); render(); }
     else if (a === 'input') openInput(b.dataset.date ? { date: b.dataset.date } : null);
     else if (a === 'fixed') { S.fixedOpen = !S.fixedOpen; render(); }
+    else if (a === 'billpaid') {
+      // 결제일 전에 카드값을 미리 냈으면 다가오는 결제에서 뺀다 (정산 숫자는 그대로: 이번 달에 나간 돈은 같음)
+      const M = D.today.slice(0, 7), bp = JSON.parse(JSON.stringify(API.settings().billPaid || {}));
+      b.dataset.ids.split(',').forEach(id => { bp[id] = bp[id] || {}; bp[id][M] = D.today; });
+      API.write('설정', 'billPaid', bp); toast('냈다고 표시했어요. 다가오는 결제에서 뺐어요');
+    }
     else if (a === 'fxrec') {
       const f = D.fixed.find(x => String(x.id) === b.dataset.id); if (!f) return;
       const cat = f.category || Calc.guessCat(f.name);

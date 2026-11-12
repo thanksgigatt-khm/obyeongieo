@@ -305,6 +305,7 @@
       for (const c of cards()) {
         const day = Math.min(+c.payDay || 15, daysIn(M));
         if (day < d) continue;
+        if (st.billPaid?.[c.id]?.[M]) continue;          // 결제일 전에 미리 낸 카드값
         const amount = cardBill(c, M).total;
         if (!amount) continue;
         (byDay[day] ??= { day, kind: 'card', cards: [], parts: [], amount: 0 });
