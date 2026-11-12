@@ -89,7 +89,7 @@
     if (!S.role) { $app.innerHTML = loginView(); return; }
     const waiting = LIVE && !API.loaded() && S.tab !== 'more';
     const body = waiting
-      ? `<div class="card empty">${S.offline ? '인터넷 연결을 확인해 주세요.<br>연결되면 바로 불러와요.' : '구글 시트에서 불러오는 중…'}</div>`
+      ? `<div class="card empty" role="status">${S.offline ? `인터넷 연결을 확인해 주세요.<br>연결되면 바로 불러와요.<br><button class="btn soft" data-act="retry" style="margin-top:14px">다시 시도</button>` : '구글 시트에서 불러오는 중…'}</div>`
       : { home: homeView, cal: calView, hist: histView, ana: anaView, more: moreView }[S.tab]();
     $app.innerHTML = headerView() + `<main class="wrap">${body}</main>` + tabbarView() +
       (isOwner() ? `<button class="fab" data-act="input">${ICON('plus')}입력</button>` : '');
@@ -511,18 +511,39 @@
   }
 
   // ---------- 아래에서 올라오는 창 ----------
-  let sheetEl = null;
+  // 창이 열리면 읽기 도구·키보드 초점을 창으로 옮기고, 닫으면 누른 버튼으로 돌려놓는다
+  let sheetEl = null, sheetFrom = null;
   function openSheet(title, html, mount, cls) {
-    closeSheet();
+    if (!sheetEl) sheetFrom = document.activeElement;
+    closeSheet(true);
     sheetEl = document.createElement('div');
     sheetEl.className = 'scrim';
-    sheetEl.innerHTML = `<div class="sheet wrap ${cls || ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grip"></div>
+    sheetEl.innerHTML = `<div class="sheet wrap ${cls || ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1"><div class="grip"></div>
       <div class="sheet-h"><h3>${esc(title)}</h3><button class="iconbtn" data-act="close" aria-label="닫기">${ICON('x')}</button></div>${html}</div>`;
     sheetEl.addEventListener('click', e => { if (e.target === sheetEl) closeSheet(); });
     document.body.appendChild(sheetEl);
-    if (mount) mount(sheetEl.querySelector('.sheet'));
+    document.body.classList.add('sheet-open');
+    const box = sheetEl.querySelector('.sheet');
+    if (mount) mount(box);
+    if (!box.contains(document.activeElement)) box.focus({ preventScroll: true });
   }
-  function closeSheet() { if (sheetEl) { sheetEl.remove(); sheetEl = null; } }
+  function closeSheet(keepFocus) {
+    if (!sheetEl) return;
+    sheetEl.remove(); sheetEl = null;
+    if (keepFocus === true) return;
+    document.body.classList.remove('sheet-open');
+    if (sheetFrom && document.contains(sheetFrom)) sheetFrom.focus({ preventScroll: true });
+    sheetFrom = null;
+  }
+  // 창이 열려 있으면 Tab 키가 창 안에서만 돈다
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Tab' || !sheetEl) return;
+    const f = [...sheetEl.querySelectorAll('button,input,select,textarea,a[href],[tabindex="0"]')].filter(x => !x.disabled && x.offsetParent);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !sheetEl.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 
   let toastT = null;
   function toast(msg, ms) {
@@ -945,6 +966,7 @@
       if (LIVE) { API.logout(); D = liveData(); }
       render();
     }
+    else if (a === 'retry') { toast('다시 불러오는 중…'); API.sync(); }
     else if (a === 'pick') { S.login = b.dataset.role || null; render(); const p = document.getElementById('pw'); if (p) p.focus(); }
   });
   // 창 안의 버튼 (창은 #app 밖에 붙는다)
@@ -982,7 +1004,7 @@
     API.on((type, info) => {
       if (type === 'logout') { S.role = null; S.login = null; D = liveData(); render(); toast('다시 로그인해 주세요'); return; }
       if (type === 'offline') { S.offline = true; toast('인터넷 연결을 확인해 주세요. 입력은 연결되면 보내요'); }
-      if (type === 'online') S.offline = false;
+      if (type === 'online' || (type === 'change' && API.online() && navigator.onLine)) S.offline = false;
       if (type === 'error') { S.importing = 0; toast(`시트에 저장하지 못한 것이 있어요 (${info}). Claude에게 알려 주세요`, 8000); }
       if (type === 'saved') {
         S.savedAt = Date.now();
@@ -993,6 +1015,8 @@
       if (S.role && document.activeElement?.id !== 'hq') render();
     });
     if (S.role) API.start();
+    // 폰이 인터넷에서 끊기면 바로 표시 (다시 연결되면 API가 받아 오면서 지움)
+    window.addEventListener('offline', () => { if (!S.offline) { S.offline = true; if (S.role) render(); toast('인터넷 연결을 확인해 주세요. 입력은 연결되면 보내요'); } });
   }
   $app.addEventListener('input', e => {
     if (e.target.id === 'hq') {

@@ -378,3 +378,6 @@ main{display:flex;flex-direction:column;gap:14px;padding-top:16px}
 .noti-row .tt small{color:var(--muted);font-size:12.5px}
 .noti-times{display:flex;gap:8px;margin-top:4px}
 .noti-times .inp.time{min-height:40px;width:auto;flex:1;max-width:160px;font-size:15px}
+/* 10단계 마무리 */
+body.sheet-open{overflow:hidden}
+.sheet:focus{outline:none}
