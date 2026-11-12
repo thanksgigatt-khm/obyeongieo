@@ -497,3 +497,11 @@ function pushTick() {
     catch (e) { console.log('알림 실패 ' + x.kind + ': ' + e.message); }
   });
 }
+
+// 알림에 필요한 권한(바깥 연결·시간 트리거)을 다시 묻는 함수. Apps Script 편집기에서 이 함수를 골라 [실행]하면 허락 창이 떠요.
+function allowPush() {
+  ScriptApp.requireAllScopes(ScriptApp.AuthMode.FULL);
+  UrlFetchApp.fetch('https://www.google.com/generate_204', { muteHttpExceptions: true });
+  ScriptApp.getProjectTriggers();
+  console.log('알림 권한 확인 끝');
+}
