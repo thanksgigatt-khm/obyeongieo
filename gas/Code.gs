@@ -293,33 +293,49 @@ const NOTI_TEXT = {
   sunday: { body: '청지기님, 한 주 마무리! 빠진 입력은 없는지, 다음 주 장보기 예산을 확인해 보세요.', go: 'home' }
 };
 
+// 한 번 실행은 6분까지라서, 값을 하나 넣을 때마다 바로 저장해요. 시간이 넘어 멈추면 다시 실행하면 이어서 해요.
 function setupPush() {
   const ui = SpreadsheetApp.getUi();
   const props = PropertiesService.getScriptProperties();
-  const a = ui.prompt('알림 준비 1/3 — 웹 앱 설정값',
-    'Firebase → 프로젝트 설정 → 일반 → 내 앱 아래 firebaseConfig 내용을 { 부터 } 까지 통째로 붙여 넣어 주세요.', ui.ButtonSet.OK_CANCEL);
-  if (a.getSelectedButton() !== ui.Button.OK) return;
-  const t = a.getResponseText();
-  const pick = k => { const m = t.match(new RegExp(k + '[\'"]?\\s*:\\s*[\'"]([^\'"]+)')); return m ? m[1].trim() : ''; };
-  const web = { apiKey: pick('apiKey'), projectId: pick('projectId'), messagingSenderId: pick('messagingSenderId'), appId: pick('appId') };
-  if (!web.apiKey || !web.projectId || !web.messagingSenderId || !web.appId) {
-    ui.alert('apiKey · projectId · messagingSenderId · appId를 찾지 못했어요. 메뉴에서 [알림 준비]를 다시 해 주세요.'); return;
+  if (props.getProperty('push_sa')) {
+    const r = ui.alert('이미 알림 준비가 되어 있어요', '처음부터 다시 넣을까요?', ui.ButtonSet.YES_NO);
+    if (r !== ui.Button.YES) return;
+    props.deleteProperty('push_tmp');
   }
-  const b = ui.prompt('알림 준비 2/3 — 웹 푸시 인증서',
-    'Firebase → 프로젝트 설정 → 클라우드 메시징 → 웹 푸시 인증서의 "키 쌍" 값을 붙여 넣어 주세요.', ui.ButtonSet.OK_CANCEL);
-  if (b.getSelectedButton() !== ui.Button.OK) return;
-  web.vapidKey = b.getResponseText().replace(/\s/g, '');
-  if (!/^[A-Za-z0-9_-]{80,}$/.test(web.vapidKey)) { ui.alert('키 쌍 값이 아닌 것 같아요. 메뉴에서 [알림 준비]를 다시 해 주세요.'); return; }
+  let web = JSON.parse(props.getProperty('push_tmp') || '{}');
+  const keep = () => props.setProperty('push_tmp', JSON.stringify(web));
+
+  if (!web.apiKey) {
+    const a = ui.prompt('알림 준비 1/3 — 웹 앱 설정값',
+      'Firebase → 프로젝트 설정 → 일반 → 내 앱 → SDK 설정 및 구성 → [구성]의 { 부터 } 까지를 붙여 넣어 주세요.', ui.ButtonSet.OK_CANCEL);
+    if (a.getSelectedButton() !== ui.Button.OK) return;
+    const t = a.getResponseText();
+    const pick = k => { const m = t.match(new RegExp(k + '[\'"]?\s*:\s*[\'"]([^\'"]+)')); return m ? m[1].trim() : ''; };
+    const w = { apiKey: pick('apiKey'), projectId: pick('projectId'), messagingSenderId: pick('messagingSenderId'), appId: pick('appId') };
+    if (!w.apiKey || !w.projectId || !w.messagingSenderId || !w.appId) {
+      ui.alert('apiKey · projectId · messagingSenderId · appId를 찾지 못했어요. 메뉴에서 [알림 준비]를 다시 해 주세요.'); return;
+    }
+    web = w; keep();
+  }
+  if (!web.vapidKey) {
+    const b = ui.prompt('알림 준비 2/3 — 웹 푸시 인증서',
+      '1번은 저장했어요.\nFirebase → 프로젝트 설정 → 클라우드 메시징 → 맨 아래 웹 푸시 인증서의 "키 쌍" 값을 붙여 넣어 주세요.', ui.ButtonSet.OK_CANCEL);
+    if (b.getSelectedButton() !== ui.Button.OK) return;
+    const v = b.getResponseText().replace(/\s/g, '');
+    if (!/^[A-Za-z0-9_-]{80,}$/.test(v)) { ui.alert('키 쌍 값이 아닌 것 같아요. 메뉴에서 [알림 준비]를 다시 하면 2번부터 이어서 해요.'); return; }
+    web.vapidKey = v; keep();
+  }
   const c = ui.prompt('알림 준비 3/3 — 서비스 계정 키',
-    'Firebase → 프로젝트 설정 → 서비스 계정 → [새 비공개 키 생성]으로 받은 파일을 메모장으로 열어 내용 전체를 붙여 넣어 주세요.\n붙여 넣은 뒤 그 파일은 꼭 지워 주세요.', ui.ButtonSet.OK_CANCEL);
+    '1·2번은 저장했어요.\n받은 키 파일을 메모장으로 열어 Ctrl+A, Ctrl+C로 전체 복사해서 붙여 넣어 주세요. 붙여 넣은 뒤 그 파일은 꼭 지워 주세요.', ui.ButtonSet.OK_CANCEL);
   if (c.getSelectedButton() !== ui.Button.OK) return;
   let sa = null; try { sa = JSON.parse(c.getResponseText()); } catch (e) { sa = null; }
-  if (!sa || !sa.client_email || !sa[SA_KEY_FIELD]) { ui.alert('서비스 계정 키 내용이 아닌 것 같아요. 메뉴에서 [알림 준비]를 다시 해 주세요.'); return; }
+  if (!sa || !sa.client_email || !sa[SA_KEY_FIELD]) { ui.alert('서비스 계정 키 내용이 아닌 것 같아요. 메뉴에서 [알림 준비]를 다시 하면 3번부터 이어서 해요.'); return; }
   if (sa.project_id && sa.project_id !== web.projectId) { ui.alert('1번 설정값과 3번 키가 서로 다른 Firebase 프로젝트예요. 같은 프로젝트에서 받아 주세요.'); return; }
-  props.setProperty('push_web', JSON.stringify(web));
   props.setProperty('push_sa', JSON.stringify({ email: sa.client_email, key: sa[SA_KEY_FIELD] }));
   CacheService.getScriptCache().remove('push_at');
-  try { fcmToken_(); } catch (e) { ui.alert('키 확인에 실패했어요: ' + e.message); return; }
+  try { fcmToken_(); } catch (e) { props.deleteProperty('push_sa'); ui.alert('키 확인에 실패했어요: ' + e.message); return; }
+  props.setProperty('push_web', JSON.stringify(web));
+  props.deleteProperty('push_tmp');
   ScriptApp.getProjectTriggers().forEach(tr => { if (tr.getHandlerFunction() === 'pushTick') ScriptApp.deleteTrigger(tr); });
   ScriptApp.newTrigger('pushTick').timeBased().everyMinutes(15).create();
   ensureDeviceTab_();
