@@ -309,8 +309,8 @@ function setupPush() {
     const a = ui.prompt('알림 준비 1/3 — 웹 앱 설정값',
       'Firebase → 프로젝트 설정 → 일반 → 내 앱 → SDK 설정 및 구성 → [구성]의 { 부터 } 까지를 붙여 넣어 주세요.', ui.ButtonSet.OK_CANCEL);
     if (a.getSelectedButton() !== ui.Button.OK) return;
-    const t = a.getResponseText();
-    const pick = k => { const m = t.match(new RegExp(k + '[\'"]?\s*:\s*[\'"]([^\'"]+)')); return m ? m[1].trim() : ''; };
+    const t = a.getResponseText().replace(/\s/g, '');      // 띄어쓰기·줄바꿈을 모두 빼고 찾기
+    const pick = k => { const m = t.match(new RegExp(k + '[\'"]?:[\'"]([^\'"]+)')); return m ? m[1] : ''; };
     const w = { apiKey: pick('apiKey'), projectId: pick('projectId'), messagingSenderId: pick('messagingSenderId'), appId: pick('appId') };
     if (!w.apiKey || !w.projectId || !w.messagingSenderId || !w.appId) {
       ui.alert('apiKey · projectId · messagingSenderId · appId를 찾지 못했어요. 메뉴에서 [알림 준비]를 다시 해 주세요.'); return;
