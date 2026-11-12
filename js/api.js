@@ -154,8 +154,17 @@
     emit('change'); sync();
   }
 
+  // 알림 같은 바로 답이 필요한 요청 (시트 탭에는 쓰지 않음)
+  async function call(body) {
+    try {
+      const r = await post(Object.assign({}, body, { token: token() }));
+      if (r && r.error === 'login_required') expired();
+      return r || { ok: false, error: 'no_reply' };
+    } catch (e) { return { ok: false, error: 'network' }; }
+  }
+
   window.API = {
-    enabled: () => !!CFG.api,
+    enabled: () => !!CFG.api, call,
     token, role: () => LS.get('role'),
     login, logout, start, stop, sync, write, writeMany, remove,
     list: tab => [...(data[tab] || new Map()).values()],

@@ -262,7 +262,7 @@
       <section class="card navy"><div class="label">다음 달 정산 예상</div><div class="v num ${H.settleNext < 0 ? 'neg' : 'pos'}">${signed(H.settleNext)}</div>
         <div class="hint">이번 달 카드 사용분 포함</div></section>
     </div>
-    ${flow ? `<section class="card"><h2>다가오는 결제 <small>날짜순</small></h2><ul class="flow">${flow}</ul>
+    ${flow ? `<section class="card" id="upcoming"><h2>다가오는 결제 <small>날짜순</small></h2><ul class="flow">${flow}</ul>
       ${H.needBy ? `<div class="need">${H.needBy.day}일까지 통장에 <b class="num">${fmt(H.needBy.amount)}원</b>이 필요해요</div>` : ''}</section>` : ''}
     ${env ? `<section class="card"><h2>이번 달 예산 <small>${monthLabel(S.month)}</small></h2><div class="bars">${env}</div>
       ${LIVE && isOwner() ? `<button class="btn soft block" data-act="shop" style="margin-top:12px">${ICON('cart', 'sm')}장보기 모드</button>` : ''}</section>` : ''}
@@ -937,6 +937,7 @@
     else if (a === 'menu' && b.dataset.k === 'upload' && LIVE) openUpload();
     else if (a === 'menu' && LIVE && window.OBYE_EXTRAS && ['shop', 'held', 'goal'].includes(b.dataset.k)) OBYE_EXTRAS[{ shop: 'shop', held: 'heldList', goal: 'goals' }[b.dataset.k]](UI_TOOLS);
     else if (a === 'menu' && b.dataset.k === 'set' && LIVE && window.OBYE_SETTINGS) OBYE_SETTINGS.open(UI_TOOLS);
+    else if (a === 'menu' && b.dataset.k === 'noti' && LIVE && window.OBYE_NOTI) OBYE_NOTI.open(UI_TOOLS);
     else if (a === 'menu') { const m = MENU.find(x => x.k === b.dataset.k); openSheet(m.t, `<div class="stack"><p style="margin:0">${STEP_TEXT[m.k]}</p><p class="muted" style="margin:0;font-size:13px">아직 만드는 중이에요. 곧 쓸 수 있어요.</p><button class="btn block" data-act="close">닫기</button></div>`); }
     else if (a === 'switch') { S.role = isOwner() ? 'viewer' : 'owner'; store.set('role', S.role); S.tab = 'home'; render(); toast(isOwner() ? '청지기 화면이에요' : '함께 보기 화면이에요 (입력 버튼이 없어요)'); }
     else if (a === 'logout') {
@@ -1002,6 +1003,24 @@
   });
 
   render();
+
+  // 알림을 눌러서 열었을 때 (명세서 11-2): 홈 / 참았어요 / 다가오는 결제 / 장보기
+  function goTo(go) {
+    const run = () => {
+      closeSheet(); S.tab = 'home'; store.set('tab', 'home'); S.month = ymd(new Date()).slice(0, 7);
+      render(); window.scrollTo(0, 0);
+      if (go === 'held' && LIVE && isOwner() && window.OBYE_EXTRAS) OBYE_EXTRAS.held(UI_TOOLS);
+      else if (go === 'shop' && LIVE && isOwner() && window.OBYE_EXTRAS) OBYE_EXTRAS.shop(UI_TOOLS);
+      else if (go === 'pay') { const el = document.getElementById('upcoming'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    };
+    if (!LIVE || API.loaded()) { run(); return; }
+    const t = setInterval(() => { if (API.loaded()) { clearInterval(t); run(); } }, 300);
+    setTimeout(() => clearInterval(t), 20000);
+  }
+  const goParam = new URLSearchParams(location.search).get('go');
+  if (goParam) { history.replaceState(null, '', location.pathname); if (S.role) goTo(goParam); }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'go' && S.role) goTo(e.data.go); });
+  if (LIVE && S.role && window.OBYE_NOTI) setTimeout(OBYE_NOTI.refresh, 5000);     // 이 폰 알림 주소가 바뀌었는지 가끔 확인
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => { /* 오프라인 저장만 안 될 뿐 앱은 동작 */ });

@@ -371,3 +371,10 @@ main{display:flex;flex-direction:column;gap:14px;padding-top:16px}
 .ana-list .ana-tx small{display:block;font-size:12px;color:var(--muted)}
 .ana-list .ana-tx>.num{flex:none;font-weight:700}
 .tcol.few .tv{font-size:10.5px;line-height:1.25;text-align:center;opacity:.7}
+/* 9단계 알림 */
+.noti-on{flex-direction:row;align-items:center;gap:8px}
+.noti-row{padding:6px 12px 10px}
+.noti-row .tt{display:flex;flex-direction:column;gap:2px}
+.noti-row .tt small{color:var(--muted);font-size:12.5px}
+.noti-times{display:flex;gap:8px;margin-top:4px}
+.noti-times .inp.time{min-height:40px;width:auto;flex:1;max-width:160px;font-size:15px}

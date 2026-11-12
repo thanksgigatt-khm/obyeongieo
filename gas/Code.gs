@@ -28,6 +28,9 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('오병이어')
     .addItem('처음 설정 (탭 만들기 + 비밀번호)', 'setup')
     .addItem('모든 폰 로그아웃', 'logoutAll')
+    .addSeparator()
+    .addItem('알림 준비 (Firebase 값 넣기)', 'setupPush')
+    .addItem('알림 시험 보내기', 'pushTestMenu')
     .addToUi();
 }
 
@@ -251,6 +254,7 @@ function doPost(e) {
   if (!role) return json_({ ok: false, error: 'login_required' });
   if (body.action === 'logout') { PropertiesService.getScriptProperties().deleteProperty('tok_' + hash_(body.token)); return json_({ ok: true }); }
   if (role !== 'owner') return json_({ ok: false, error: 'view_only' });
+  if (String(body.action).indexOf('push') === 0) return json_(pushAction_(body));
   if (WRITE_TABS.indexOf(body.tab) < 0) return json_({ ok: false, error: 'bad_tab' });
 
   const lock = LockService.getScriptLock();
@@ -268,4 +272,212 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------- 알림 (명세서 11장) ----------
+// Firebase 값은 이 스크립트의 '스크립트 속성'에만 저장해요 (저장소·시트에 넣지 않음).
+// 알림 문구에는 금액·가맹점·카드명을 넣지 않아요. 숫자는 앱을 열어야 보여요.
+// 15분마다 pushTick이 돌면서, 정해 둔 시각이 지났고 오늘 아직 안 보낸 알림만 보내요.
+const TZ = 'Asia/Seoul';
+const SA_KEY_FIELD = 'private' + '_key';
+const NOTI_DEFAULT = {
+  evening: { on: true, time: '18:00' },
+  weekend: { on: true, time: '11:30', time2: '17:30' },
+  payday: { on: true, time: '09:00' },
+  sunday: { on: true, time: '21:00' }
+};
+const NOTI_TEXT = {
+  evening: { body: '청지기님, 퇴근길이에요. 오늘 쓸 수 있는 돈을 확인하고 저녁 메뉴를 정해 볼까요?', go: 'home' },
+  weekend: { body: '배달 앱 열기 전에 가계부 먼저 한 번 볼까요? 참았으면 [참았어요]도 눌러 주세요.', go: 'held' },
+  payday: { body: '{d}일에 카드 결제가 있어요. 통장에 필요한 금액을 확인해 주세요.', go: 'pay' },
+  sunday: { body: '청지기님, 한 주 마무리! 빠진 입력은 없는지, 다음 주 장보기 예산을 확인해 보세요.', go: 'home' }
+};
+
+function setupPush() {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  const a = ui.prompt('알림 준비 1/3 — 웹 앱 설정값',
+    'Firebase → 프로젝트 설정 → 일반 → 내 앱 아래 firebaseConfig 내용을 { 부터 } 까지 통째로 붙여 넣어 주세요.', ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const t = a.getResponseText();
+  const pick = k => { const m = t.match(new RegExp(k + '[\'"]?\\s*:\\s*[\'"]([^\'"]+)')); return m ? m[1].trim() : ''; };
+  const web = { apiKey: pick('apiKey'), projectId: pick('projectId'), messagingSenderId: pick('messagingSenderId'), appId: pick('appId') };
+  if (!web.apiKey || !web.projectId || !web.messagingSenderId || !web.appId) {
+    ui.alert('apiKey · projectId · messagingSenderId · appId를 찾지 못했어요. 메뉴에서 [알림 준비]를 다시 해 주세요.'); return;
+  }
+  const b = ui.prompt('알림 준비 2/3 — 웹 푸시 인증서',
+    'Firebase → 프로젝트 설정 → 클라우드 메시징 → 웹 푸시 인증서의 "키 쌍" 값을 붙여 넣어 주세요.', ui.ButtonSet.OK_CANCEL);
+  if (b.getSelectedButton() !== ui.Button.OK) return;
+  web.vapidKey = b.getResponseText().replace(/\s/g, '');
+  if (!/^[A-Za-z0-9_-]{80,}$/.test(web.vapidKey)) { ui.alert('키 쌍 값이 아닌 것 같아요. 메뉴에서 [알림 준비]를 다시 해 주세요.'); return; }
+  const c = ui.prompt('알림 준비 3/3 — 서비스 계정 키',
+    'Firebase → 프로젝트 설정 → 서비스 계정 → [새 비공개 키 생성]으로 받은 파일을 메모장으로 열어 내용 전체를 붙여 넣어 주세요.\n붙여 넣은 뒤 그 파일은 꼭 지워 주세요.', ui.ButtonSet.OK_CANCEL);
+  if (c.getSelectedButton() !== ui.Button.OK) return;
+  let sa = null; try { sa = JSON.parse(c.getResponseText()); } catch (e) { sa = null; }
+  if (!sa || !sa.client_email || !sa[SA_KEY_FIELD]) { ui.alert('서비스 계정 키 내용이 아닌 것 같아요. 메뉴에서 [알림 준비]를 다시 해 주세요.'); return; }
+  if (sa.project_id && sa.project_id !== web.projectId) { ui.alert('1번 설정값과 3번 키가 서로 다른 Firebase 프로젝트예요. 같은 프로젝트에서 받아 주세요.'); return; }
+  props.setProperty('push_web', JSON.stringify(web));
+  props.setProperty('push_sa', JSON.stringify({ email: sa.client_email, key: sa[SA_KEY_FIELD] }));
+  CacheService.getScriptCache().remove('push_at');
+  try { fcmToken_(); } catch (e) { ui.alert('키 확인에 실패했어요: ' + e.message); return; }
+  ScriptApp.getProjectTriggers().forEach(tr => { if (tr.getHandlerFunction() === 'pushTick') ScriptApp.deleteTrigger(tr); });
+  ScriptApp.newTrigger('pushTick').timeBased().everyMinutes(15).create();
+  ensureDeviceTab_();
+  ui.alert('알림 준비 끝!', '이제 폰 앱 → 더보기 → 알림에서 [이 폰에서 알림 받기]를 눌러 주세요.', ui.ButtonSet.OK);
+}
+
+function pushTestMenu() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const r = sendAll_({ body: '알림 시험이에요. 정해 둔 시간에 이렇게 알려 드릴게요.', go: 'home', tag: 'test' });
+    ui.alert(r.total ? '알림 기기 ' + r.total + '대 중 ' + r.sent + '대에 보냈어요.' : '알림 받는 폰이 아직 없어요. 폰 앱 → 더보기 → 알림에서 [이 폰에서 알림 받기]를 눌러 주세요.');
+  } catch (e) { ui.alert('보내지 못했어요: ' + e.message); }
+}
+
+// 구글 접속 열쇠 (서비스 계정으로 서명, 50분 동안 다시 씀)
+function fcmToken_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('push_at'); if (hit) return hit;
+  const sa = JSON.parse(PropertiesService.getScriptProperties().getProperty('push_sa') || 'null');
+  if (!sa) throw new Error('알림 준비가 안 됐어요');
+  const b64 = s => Utilities.base64EncodeWebSafe(s).replace(/=+$/, '');
+  const now = Math.floor(Date.now() / 1000);
+  const head = b64(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim = b64(JSON.stringify({ iss: sa.email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
+  const sig = b64(Utilities.computeRsaSha256Signature(head + '.' + claim, sa.key));
+  const r = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post', muteHttpExceptions: true,
+    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: head + '.' + claim + '.' + sig }
+  });
+  const j = JSON.parse(r.getContentText() || '{}');
+  if (!j.access_token) throw new Error(j.error_description || j.error || ('응답 ' + r.getResponseCode()));
+  cache.put('push_at', j.access_token, 3000);
+  return j.access_token;
+}
+
+function ensureDeviceTab_() {
+  let sh = sheet_('알림기기');
+  if (!sh) {
+    sh = SpreadsheetApp.getActive().insertSheet('알림기기');
+    sh.getRange(1, 1, 1, TABS['알림기기'].length).setValues([TABS['알림기기']]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+function devices_() {
+  const sh = sheet_('알림기기'); if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues()
+    .map((r, i) => ({ token: String(r[0]), role: String(r[1]), row: i + 2 })).filter(d => d.token);
+}
+function dropDevices_(rows) {
+  const sh = sheet_('알림기기');
+  rows.sort((a, b) => b - a).forEach(r => sh.deleteRow(r));
+}
+
+// 한 기기에 보내기: 'ok' | 'gone'(지워진 기기) | 'error:코드'
+function sendOne_(token, msg, at, projectId) {
+  const r = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + projectId + '/messages:send', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + at },
+    payload: JSON.stringify({ message: {
+      token: token,
+      data: { title: msg.title || '오병이어', body: msg.body, go: msg.go || 'home', tag: msg.tag || 'obye' },
+      webpush: { headers: { Urgency: 'high', TTL: '7200' } }
+    } })
+  });
+  const code = r.getResponseCode();
+  if (code === 200) return 'ok';
+  if (code === 404 || /UNREGISTERED/.test(r.getContentText())) return 'gone';
+  return 'error:' + code;
+}
+function sendAll_(msg) {
+  const web = JSON.parse(PropertiesService.getScriptProperties().getProperty('push_web') || 'null');
+  if (!web) throw new Error('알림 준비가 안 됐어요');
+  const at = fcmToken_();
+  const devs = devices_().filter(d => d.role === 'owner');     // 보기 전용 기기에는 보내지 않음
+  let sent = 0; const gone = [];
+  devs.forEach(d => { const res = sendOne_(d.token, msg, at, web.projectId); if (res === 'ok') sent++; else if (res === 'gone') gone.push(d.row); });
+  if (gone.length) dropDevices_(gone);
+  return { sent: sent, total: devs.length };
+}
+
+// 앱에서 오는 알림 요청 (청지기만)
+function pushAction_(body) {
+  const web = JSON.parse(PropertiesService.getScriptProperties().getProperty('push_web') || 'null');
+  if (!web) return { ok: false, error: 'push_not_ready' };
+  if (body.action === 'pushInfo') return { ok: true, web: web };
+  const tok = String(body.fcm || '');
+  if (!/^[\w:.-]{20,400}$/.test(tok)) return { ok: false, error: 'bad_token' };
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: 'busy' };
+  try {
+    if (body.action === 'pushRegister') {
+      const sh = ensureDeviceTab_();
+      const old = String(body.old || '');
+      if (old && old !== tok) dropDevices_(devices_().filter(d => d.token === old).map(d => d.row));
+      if (!devices_().some(d => d.token === tok)) {
+        sh.getRange(sh.getLastRow() + 1, 1, 1, 4).setNumberFormat('@')
+          .setValues([[tok, 'owner', String(Date.now()), String(body.ua || '').slice(0, 120)]]);
+      }
+      return { ok: true };
+    }
+    if (body.action === 'pushUnregister') { dropDevices_(devices_().filter(d => d.token === tok).map(d => d.row)); return { ok: true }; }
+    if (body.action === 'pushTest') {
+      const res = sendOne_(tok, { body: '알림이 잘 와요! 정해 둔 시간에 이렇게 알려 드릴게요.', go: 'home', tag: 'test' }, fcmToken_(), web.projectId);
+      return res === 'ok' ? { ok: true } : { ok: false, error: res };
+    }
+    return { ok: false, error: 'bad_action' };
+  } finally { lock.releaseLock(); }
+}
+
+function settingsMap_() {
+  const o = {};
+  const sh = sheet_('설정'); if (!sh || sh.getLastRow() < 2) return o;
+  sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(r => { try { o[String(r[0])] = JSON.parse(r[1]); } catch (e) { /* 건너뜀 */ } });
+  return o;
+}
+function notiPrefs_(saved) {
+  const n = JSON.parse(JSON.stringify(NOTI_DEFAULT));
+  Object.keys(n).forEach(k => { if (saved && saved[k]) Object.assign(n[k], saved[k]); });
+  return n;
+}
+function toMin_(hm) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || '')); return m ? +m[1] * 60 + +m[2] : -1; }
+
+// 3일 뒤가 카드 결제일이면 그 날짜(일), 아니면 0
+function payDayIn3_(now, cards) {
+  const d = new Date(now.getTime() + 3 * 86400000);
+  const y = +Utilities.formatDate(d, TZ, 'yyyy'), m = +Utilities.formatDate(d, TZ, 'M'), day = +Utilities.formatDate(d, TZ, 'd');
+  const last = new Date(y, m, 0).getDate();
+  return (cards || []).some(c => Math.min(+c.payDay || 15, last) === day) ? day : 0;
+}
+
+// 시간 트리거 (15분마다)
+function pushTick() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('push_sa')) return;
+  const now = new Date();
+  const today = Utilities.formatDate(now, TZ, 'yyyy-MM-dd');
+  const dow = +Utilities.formatDate(now, TZ, 'u');            // 1=월 … 7=일
+  const mins = toMin_(Utilities.formatDate(now, TZ, 'HH:mm'));
+  const S = settingsMap_();
+  const N = notiPrefs_(S.noti);
+  const due = [];
+  const slot = (kind, time, msg) => { const t = toMin_(time); if (t >= 0 && mins >= t && mins < t + 50) due.push({ key: kind + '@' + time, kind: kind, msg: msg }); };
+  if (N.evening.on && dow <= 5) slot('evening', N.evening.time, NOTI_TEXT.evening);
+  if (N.weekend.on && dow >= 6) { slot('weekend', N.weekend.time, NOTI_TEXT.weekend); slot('weekend', N.weekend.time2, NOTI_TEXT.weekend); }
+  if (N.sunday.on && dow === 7) slot('sunday', N.sunday.time, NOTI_TEXT.sunday);
+  if (N.payday.on) {
+    const d = payDayIn3_(now, S.cards);
+    if (d) slot('payday', N.payday.time, { body: NOTI_TEXT.payday.body.replace('{d}', d), go: NOTI_TEXT.payday.go });
+  }
+  if (!due.length) return;
+  let sent = JSON.parse(props.getProperty('push_sent') || 'null');
+  if (!sent || sent.day !== today) sent = { day: today, keys: [] };
+  due.forEach(x => {
+    if (sent.keys.indexOf(x.key) >= 0) return;
+    sent.keys.push(x.key);
+    props.setProperty('push_sent', JSON.stringify(sent));     // 먼저 적어 두어 두 번 가지 않게
+    try { sendAll_({ body: x.msg.body, go: x.msg.go, tag: x.kind }); }
+    catch (e) { console.log('알림 실패 ' + x.kind + ': ' + e.message); }
+  });
 }
