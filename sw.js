@@ -1,6 +1,6 @@
 // 앱 화면 파일만 저장해 두는 서비스 워커. 가계부 데이터(Apps Script 응답)는 저장하지 않는다.
 // 앱을 바꿀 때마다 CACHE 이름의 숫자를 올린다.
-const CACHE = 'obye-v30';
+const CACHE = 'obye-v31';
 const FILES = ['./', 'index.html', 'css/app.css', 'js/icons.js', 'js/demo.js', 'js/config.js', 'js/calc.js', 'js/statement.js', 'js/api.js', 'js/settings.js', 'js/extras.js', 'js/noti.js', 'js/app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 

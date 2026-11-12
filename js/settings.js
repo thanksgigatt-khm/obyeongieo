@@ -158,6 +158,7 @@
       { k: 'method', label: '결제', type: 'select', options: () => [...cards().map(c => [c.id, c.name]), ['cash', '현금·이체']] },
       { k: 'day', label: '매달 며칠에 나가나요', type: 'day', ph: '1~31' },
       { k: 'category', label: '분류', type: 'select', options: () => catNames().map(c => [c, c]) },
+      { k: 'matchKeyword', label: '명세서에 찍히는 이름 (여러 개면 | 로)', type: 'text', show: x => x.method !== 'cash', ph: '예: LG유플러스|LGU+', hint: '이 이름이 들어간 카드 내역은 이 고정지출로 묶어서 두 번 세지 않아요' },
       { k: 'from', label: '시작 달', type: 'month' },
       { k: 'until', label: '끝 달 (계속 내면 비워 두세요)', type: 'month' },
       { k: 'debt', label: '빚을 나눠 갚는 중이에요', type: 'toggle', hint: '켜면 홈 ‘갚아가는 중’에 막대로 보여요' },

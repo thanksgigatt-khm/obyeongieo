@@ -280,12 +280,15 @@
       // 고정지출과 맞추기: matchKeyword 또는 이름이 가맹점에 들어 있음, 아니면 같은 카드·같은 금액·결제일 근처
       if (!extra.fee && status !== 'nocard' && t.months === 1) {
         const U = t.date.slice(0, 7);
-        const cands = (ctx.fixed || []).filter(f => f.method === method && f.id != null && !usedFixed.has(f.id) && C.fixedOn(f, U));
         const nm = Calc.normMerchant(t.memo);
+        // 맞춤 단어(matchKeyword, '|'로 여러 개)로 찾으면 여러 건이 한 고정지출에 붙을 수 있음 (예: 핸드폰 6회선 → 핸드폰비 한 줄)
+        const kw = f => String(f.matchKeyword || '').split('|').map(s => Calc.normMerchant(s.trim())).filter(Boolean);
+        const byKw = (ctx.fixed || []).find(f => f.method === method && f.id != null && C.fixedOn(f, U) && kw(f).some(k => nm.includes(k)));
+        const cands = byKw ? [byKw] : (ctx.fixed || []).filter(f => f.method === method && f.id != null && !usedFixed.has(f.id) && C.fixedOn(f, U));
         // 이름으로 찾은 것도 금액이 30% 넘게 다르면 맞추지 않음 (예: 여러 회선 합친 통신비 ↔ 회선 하나)
         // '매달 달라요' 표시한 것은 60%까지 같은 것으로 봄
         const close = f => { const fa = C.fixedAmt(f, U); return fa > 0 && Math.abs(fa - t.amount) <= fa * (f.variable ? 0.6 : 0.3); };
-        const f = cands.find(f => f.matchKeyword && nm.includes(Calc.normMerchant(f.matchKeyword)))
+        const f = byKw
           || cands.find(f => close(f) && words(f.name).some(w => nm.includes(Calc.normMerchant(w))))
           || cands.find(f => Math.round(C.fixedAmt(f, U)) === t.amount && Math.abs((+f.day || 1) - +t.date.slice(8, 10)) <= 5);
         if (f) {
@@ -293,7 +296,7 @@
           t.isFixed = true; t.fixedId = f.id;
           if (f.category && ctx.categories.includes(f.category)) t.category = f.category;
           const fa = Math.round(C.fixedAmt(f, U));
-          if (!f.pct && !f.perWeek && !f.variable && fa !== t.amount) t.fixedChange = { id: f.id, name: f.name, from: fa, to: t.amount };
+          if (!byKw && !f.pct && !f.perWeek && !f.variable && fa !== t.amount) t.fixedChange = { id: f.id, name: f.name, from: fa, to: t.amount };
           t.fixedName = f.name;
         }
       }
